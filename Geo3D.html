@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>GeoPortal 3D</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/gh/gdsestimating/three-dxf@master/build/three-dxf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.71.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three-dxf@0.0.8/src/DXFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@dxfom/dxf@1.0.5/dist/dxf.umd.js"></script>
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .navbar {
+            background: #2e1a0e;
+            border-bottom: 2px solid #3e2723;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            padding: 5px 16px;
+            z-index: 1000;
+            position: relative;
+            min-height: 50px;
+            width: 100%;
+            overflow: visible;
+        }
+        .navbar-brand {
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            margin-right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .navbar-brand i {
+            font-size: 24px;
+            color: #f5e8c7;
+        }
+        .navbar-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            position: relative;
+            min-height: 44px;
+            flex-wrap: wrap;
+            padding: 0 8px;
+            overflow: visible;
+            justify-content: flex-start;
+        }
+        .navbar-group {
+            display: flex;
+            align-items: center;
+            position: relative;
+            margin: 0 4px;
+        }
+        .feature-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #c19a6b;
+            border: 1px solid #8a6c4a;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .feature-btn > .fas:not(.fa-chevron-down) {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .feature-btn:hover {
+            background: #a98457;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        .feature-btn.active {
+            background: #8a6c4a;
+            color: white;
+            border-color: #5c4831;
+        }
+        .feature-btn::after {
+            content: attr(title);
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #483434;
+            color: #f5e8c7;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        .feature-btn:hover::after {
+            opacity: 1;
+            visibility: visible;
+        }
+        .feature-btn i.fa-chevron-down {
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            color: #f5e8c7;
+        }
+        .feature-btn.active i.fa-chevron-down {
+            color: white;
+        }
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 8px 12px;
+            }
+            .navbar-content {
+                gap: 6px;
+                justify-content: center;
+            }
+            .feature-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 14px;
+            }
+            .dropdown-content {
+                position: fixed;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 90%;
+                max-width: 300px;
+                top: 60px; /* below navbar */
+            }
+        }
+        .navbar-content:not(.expanded) > .navbar-group.overflow-item,
+        .navbar-content:not(.expanded) > .navbar-group:nth-child(n + 7) {
+            display: flex !important;
+        }
+        .navbar-toggle,
+        .navbar-overflow-toggle,
+        .navbar-overflow-toggle.hidden {
+            display: none !important;
+        }
+        .navbar-group {
+            display: flex !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        .navbar-group:nth-last-child(-n + 3) .dropdown-content {
+            right: 0;
+            left: auto;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #c19a6b;
+            min-width: 220px;
+            max-width: 280px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 9999;
+            border-radius: 8px;
+            padding: 8px;
+            opacity: 0;
+            left: 0;
+            top: calc(100% + 5px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            transform: translateY(-10px);
+        }
+        .dropdown-content.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .dropdown-section {
+            padding: 6px 0;
+        }
+        .dropdown-section:not(:last-child) {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            margin-bottom: 6px;
+            padding-bottom: 8px;
+        }
+        .dropdown-section h4 {
+            color: #2c3e50;
+            font-size: 13px;
+            margin: 0 0 6px 0;
+            padding: 0 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .sub-btn, .dropdown-content .feature-btn {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 6px 8px;
+            border: none;
+            background: #fff; /* White background */
+            color: #2c3e50;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 4px;
+            text-align: left;
+            white-space: nowrap;
+            margin: 0 0 10px 0;
+            justify-content: flex-start;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        }
+        .sub-btn:hover, .dropdown-content .feature-btn:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+            color: #3498db;
+        }
+        .sub-btn i {
+            margin-right: 8px;
+            width: 14px;
+            text-align: center;
+            color: #3498db;
+            font-size: 12px;
+        }
+        #cesiumContainer {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+        }
+        .dropdown-section .sub-btn:last-child,
+        .dropdown-section .feature-btn:last-child {
+            margin-bottom: 0;
+        }
+        #info-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #2e1a0e;
+            color: #f5e8c7;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 15px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s;
+        }
+        #info-toast.show {
+            display: block;
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <i class="fas fa-globe"></i>
+                S.T.B.T.T GeoPortal 3D
+            </div>
+            <div class="navbar-content">
+                <!-- Draw Dropdown -->
+                <div class="navbar-group">
+                    <button class="feature-btn" onclick="toggleDropdown('drawDropdown')" title="Draw">
+                        <i class="fas fa-pencil-alt"></i>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-content" id="drawDropdown">
+                        <div class="dropdown-section">
+                            <h4>Draw</h4>
+                            <button class="sub-btn" onclick="startDrawPoint()"><i class="fas fa-map-marker-alt"></i>Draw Point</button>
+                            <button class="sub-btn" onclick="startDrawPolyline()"><i class="fas fa-grip-lines"></i>Draw Polyline</button>
+                            <button class="sub-btn" onclick="startDrawPolygon()"><i class="fas fa-draw-polygon"></i>Draw Polygon</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Measure Dropdown -->
+                <div class="navbar-group">
+                    <button class="feature-btn" onclick="toggleDropdown('measureDropdown')" title="Measure">
+                        <i class="fas fa-ruler"></i>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-content" id="measureDropdown">
+                        <div class="dropdown-section">
+                            <h4>Measure</h4>
+                            <button class="sub-btn" onclick="startMeasureDistance()"><i class="fas fa-ruler-horizontal"></i>Distance</button>
+                            <button class="sub-btn" onclick="startMeasureArea()"><i class="fas fa-vector-square"></i>Area</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Other Tools Dropdown -->
+                <div class="navbar-group">
+                    <button class="feature-btn" onclick="toggleDropdown('otherDropdown')" title="Other Tools">
+                        <i class="fas fa-tools"></i>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="dropdown-content" id="otherDropdown">
+                        <div class="dropdown-section">
+                            <h4>Other Tools</h4>
+                            <button class="sub-btn" onclick="queryElevation()"><i class="fas fa-mountain"></i>Elevation Query</button>
+                            <button class="sub-btn" onclick="document.getElementById('fileInput').click()"><i class="fas fa-upload"></i>Import GeoJSON</button>
+                            <button class="sub-btn" onclick="document.getElementById('dxfInput').click()">
+                                <i class="fas fa-file-import"></i>Import CAD (.dxf)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Add this as a new navbar-group, outside any dropdown -->
+                <div class="navbar-group">
+                    <button class="feature-btn" onclick="document.getElementById('dxfInput').click()" title="Import CAD (.dxf)">
+                        <i class="fas fa-file-import"></i>
+                    </button>
+                    <input type="file" id="dxfInput" accept=".dxf" style="display: none" onchange="importDXF(event)" />
+                </div>
+                <!-- Back to 2D Button -->
+                <div class="navbar-group">
+                    <button class="feature-btn" onclick="goTo2D()" title="Back to 2D">
+                        <i class="fas fa-map"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+        <div id="cesiumContainer"></div>
+    </div>
+    <div id="info-toast"></div>
+    <script>
+        // --- CesiumJS Setup ---
+        function getParam(name) {
+            const url = new URL(window.location.href);
+            return url.searchParams.get(name);
+        }
+        const lat = parseFloat(getParam('lat')) || 20.5937;
+        const lng = parseFloat(getParam('lng')) || 78.9629;
+        const zoom = parseFloat(getParam('zoom')) || 5;
+
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlZWY2MzA0ZC03NmU4LTRjOTEtODQwNi1jYTdkNzJlMWE4MTUiLCJpZCI6MzE0NDcwLCJpYXQiOjE3NTA1OTUwNTN9.FDUqMDehocIQpHURWp-EsFICW-jcKn7Cf_jGhWeYRCY';
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            terrain: Cesium.Terrain.fromWorldTerrain(),
+            animation: false,
+            baseLayerPicker: true,
+            timeline: false,
+            sceneModePicker: false,
+        });
+
+        // Convert Leaflet zoom to Cesium height (approximate)
+        const height = 10000000 / Math.pow(2, zoom);
+
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(lng, lat, height),
+        });
+
+        // --- Navbar Tool Functions (stubs, expand as needed) ---
+        function goTo2D() {
+            // Get current Cesium camera position
+            const carto = viewer.camera.positionCartographic;
+            const lat = Cesium.Math.toDegrees(carto.latitude);
+            const lng = Cesium.Math.toDegrees(carto.longitude);
+            // Optionally, estimate zoom (or use a default)
+            const zoom = 5; // You can improve this with a height-to-zoom conversion if needed
+            window.location.href = `maingeo.html?lat=${lat}&lng=${lng}&zoom=${zoom}`;
+        }
+
+        function startCesiumDraw() {
+            alert("3D Drawing tool coming soon! (Implement with Cesium primitives)");
+            // Implement Cesium drawing logic here
+        }
+
+        function startCesiumMeasure() {
+            alert("3D Measurement tool coming soon! (Implement with Cesium geodesic math)");
+            // Implement Cesium measurement logic here
+        }
+
+        function importGeoJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const geojson = JSON.parse(e.target.result);
+                Cesium.GeoJsonDataSource.load(geojson).then(dataSource => {
+                    viewer.dataSources.add(dataSource);
+                    viewer.flyTo(dataSource);
+                });
+            };
+            reader.readAsText(file);
+        }
+
+        function toggleMapView() {
+            console.log("toggleMapView called");
+
+            // Check if map is defined
+            if (typeof map === "undefined") {
+                console.error("map is not defined!");
+                alert("Map object is not available.");
+                return;
+            } else {
+                console.log("map is defined:", map);
+            }
+
+            // Try to get center
+            let center;
+            try {
+                center = map.getCenter();
+                console.log("Map center:", center);
+            } catch (e) {
+                console.error("Error getting map center:", e);
+                alert("Could not get map center.");
+                return;
+            }
+
+            // Try to get zoom
+            let zoom;
+            try {
+                zoom = map.getZoom();
+                console.log("Map zoom:", zoom);
+            } catch (e) {
+                console.error("Error getting map zoom:", e);
+                alert("Could not get map zoom.");
+                return;
+            }
+
+            // Build URL
+            const url = `Geo3D.html?lat=${center.lat}&lng=${center.lng}&zoom=${zoom}`;
+            console.log("Redirecting to:", url);
+
+            // Redirect
+            window.location.href = url;
+        }
+
+        console.log("toggleMapView function loaded:", typeof toggleMapView);
+
+        // Improved dropdown logic for instant, reliable response
+        function toggleDropdown(id) {
+            // Close all dropdowns except the one being toggled
+            document.querySelectorAll('.dropdown-content').forEach(el => {
+                if (el.id !== id) el.classList.remove('show');
+            });
+            const dropdown = document.getElementById(id);
+            // Toggle the clicked dropdown
+            dropdown.classList.toggle('show');
+        }
+
+        // Only close dropdowns if the click is outside any .navbar-group
+        document.addEventListener('click', function(event) {
+            // If the click is inside a navbar-group, do nothing
+            if (event.target.closest('.navbar-group')) return;
+            // Otherwise, close all dropdowns
+            document.querySelectorAll('.dropdown-content').forEach(el => el.classList.remove('show'));
+        });
+
+        // --- Drawing Tools ---
+        let drawHandler = null, tempPositions = [], tempEntity = null;
+
+        function clearDrawHandler() {
+            if (drawHandler) { drawHandler.destroy(); drawHandler = null; }
+            tempPositions = [];
+            if (tempEntity) { viewer.entities.remove(tempEntity); tempEntity = null; }
+        }
+
+        function startDrawPoint() {
+            clearDrawHandler();
+            showInfo("Click on the globe to add a point.");
+            drawHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            drawHandler.setInputAction(function(click) {
+                const cartesian = viewer.scene.pickPosition(click.position);
+                if (cartesian) {
+                    viewer.entities.add({
+                        position: cartesian,
+                        point: { pixelSize: 12, color: Cesium.Color.RED, outlineColor: Cesium.Color.WHITE, outlineWidth: 2 }
+                    });
+                }
+                clearDrawHandler();
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        }
+
+        function startDrawPolyline() {
+            clearDrawHandler();
+            showInfo("Click to add points. Double-click to finish.");
+            tempPositions = [];
+            drawHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            drawHandler.setInputAction(function(click) {
+                const cartesian = viewer.scene.pickPosition(click.position);
+                if (!cartesian) {
+                    showInfo("Please click on the globe surface.");
+                    return;
+                }
+                tempPositions.push(cartesian);
+                if (!tempEntity) {
+                    tempEntity = viewer.entities.add({
+                        polyline: {
+                            positions: new Cesium.CallbackProperty(() => tempPositions, false),
+                            width: 6,
+                            material: new Cesium.PolylineGlowMaterialProperty({
+                                glowPower: 0.2,
+                                color: Cesium.Color.YELLOW
+                            }),
+                            clampToGround: false
+                        }
+                    });
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+            drawHandler.setInputAction(function() {
+                if (tempPositions.length > 1) {
+                    tempEntity = null;
+                }
+                clearDrawHandler();
+            }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+        }
+
+        function startDrawPolygon() {
+            clearDrawHandler();
+            showInfo("Click to add vertices. Double-click to finish.");
+            tempPositions = [];
+            drawHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            drawHandler.setInputAction(function(click) {
+                const cartesian = viewer.scene.pickPosition(click.position);
+                if (cartesian) {
+                    tempPositions.push(cartesian);
+                    if (!tempEntity) {
+                        tempEntity = viewer.entities.add({
+                            polygon: {
+                                hierarchy: new Cesium.CallbackProperty(() => new Cesium.PolygonHierarchy(tempPositions), false),
+                                material: Cesium.Color.BLUE.withAlpha(0.5)
+                            }
+                        });
+                    }
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+            drawHandler.setInputAction(function() {
+                if (tempPositions.length > 2) {
+                    tempEntity = null;
+                }
+                clearDrawHandler();
+            }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+        }
+
+        // --- Measurement Tools ---
+        function startMeasureDistance() {
+            clearDrawHandler();
+            showInfo("Click two points to measure distance.");
+            let positions = [];
+            drawHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            drawHandler.setInputAction(function(click) {
+                const cartesian = viewer.scene.pickPosition(click.position);
+                if (!cartesian) {
+                    showInfo("Please click on the globe surface.");
+                    return;
+                }
+                positions.push(cartesian);
+                viewer.entities.add({
+                    position: cartesian,
+                    point: { pixelSize: 10, color: Cesium.Color.GREEN }
+                });
+                if (positions.length === 2) {
+                    const cartographic1 = Cesium.Cartographic.fromCartesian(positions[0]);
+                    const cartographic2 = Cesium.Cartographic.fromCartesian(positions[1]);
+                    const geodesic = new Cesium.EllipsoidGeodesic(cartographic1, cartographic2);
+                    const distance = geodesic.surfaceDistance;
+                    viewer.entities.add({
+                        polyline: {
+                            positions: positions,
+                            width: 6,
+                            material: new Cesium.PolylineGlowMaterialProperty({
+                                glowPower: 0.2,
+                                color: Cesium.Color.RED
+                            }),
+                            clampToGround: false
+                        },
+                        label: {
+                            text: (distance / 1000).toFixed(2) + " km",
+                            font: "16px sans-serif",
+                            fillColor: Cesium.Color.WHITE,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            outlineWidth: 2,
+                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                            pixelOffset: new Cesium.Cartesian2(0, -20),
+                            position: positions[1]
+                        }
+                    });
+                    clearDrawHandler();
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        }
+
+        function startMeasureArea() {
+            clearDrawHandler();
+            showInfo("Click to add vertices. Double-click to finish.");
+            let positions = [];
+            drawHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            drawHandler.setInputAction(function(click) {
+                const cartesian = viewer.scene.pickPosition(click.position);
+                if (cartesian) {
+                    positions.push(cartesian);
+                    if (!tempEntity) {
+                        tempEntity = viewer.entities.add({
+                            polygon: {
+                                hierarchy: new Cesium.CallbackProperty(() => new Cesium.PolygonHierarchy(positions), false),
+                                material: Cesium.Color.ORANGE.withAlpha(0.5)
+                            }
+                        });
+                    }
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+            drawHandler.setInputAction(function() {
+                if (positions.length > 2) {
+                    // Calculate area (approximate, planar)
+                    let area = 0;
+                    for (let i = 0; i < positions.length; i++) {
+                        const p1 = Cesium.Cartographic.fromCartesian(positions[i]);
+                        const p2 = Cesium.Cartographic.fromCartesian(positions[(i + 1) % positions.length]);
+                        area += p1.longitude * p2.latitude - p2.longitude * p1.latitude;
+                    }
+                    area = Math.abs(area * 6378137 * 6378137 / 2); // Approximate for WGS84
+                    viewer.entities.add({
+                        position: positions[0],
+                        label: {
+                            text: (area / 1e6).toFixed(2) + " sq.km",
+                            font: "16px sans-serif",
+                            fillColor: Cesium.Color.WHITE,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            outlineWidth: 2,
+                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                            pixelOffset: new Cesium.Cartesian2(0, -20)
+                        }
+                    });
+                }
+                clearDrawHandler();
+            }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+        }
+
+        // --- Elevation Query ---
+        function queryElevation() {
+            clearDrawHandler();
+            showInfo("Click a point to get elevation.");
+            drawHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            drawHandler.setInputAction(function(click) {
+                const cartesian = viewer.scene.pickPosition(click.position);
+                if (cartesian) {
+                    const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                    const elevation = cartographic.height;
+                    viewer.entities.add({
+                        position: cartesian,
+                        label: {
+                            text: "Elevation: " + elevation.toFixed(2) + " m",
+                            font: "16px sans-serif",
+                            fillColor: Cesium.Color.YELLOW,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            outlineWidth: 2,
+                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                            pixelOffset: new Cesium.Cartesian2(0, -20)
+                        }
+                    });
+                }
+                clearDrawHandler();
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        }
+
+        function showInfo(message, duration = 2500) {
+            const toast = document.getElementById('info-toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            clearTimeout(toast._timeout);
+            toast._timeout = setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        function importDXF(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                console.error("No file selected for DXF import.");
+                showInfo("No file selected.");
+                return;
+            }
+            showInfo("Parsing DXF file...");
+            console.log("DXF import: file selected", file);
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    if (typeof window.Dxf === 'undefined' || typeof window.Dxf.parse !== 'function') {
+                        console.error("window.Dxf.parse is not loaded!");
+                        showInfo("DXF parser not loaded.");
+                        return;
+                    }
+                    console.log("DXF import: file read, result length:", e.target.result.length);
+                    const dxf = window.Dxf.parse(e.target.result);
+                    console.log("DXF import: parsed DXF object", dxf);
+
+                    let entityCount = 0;
+
+                    // Helper: Convert DXF world coordinates to lon/lat (customize if needed)
+                    function toLonLat(x, y) {
+                        // If your DXF is in lon/lat, just return [x, y]
+                        // If your DXF is in meters or feet, you need to convert to lon/lat here!
+                        return [x, y];
+                    }
+
+                    if (!dxf.entities || !Array.isArray(dxf.entities)) {
+                        showInfo("No entities found in DXF.");
+                        return;
+                    }
+
+                    dxf.entities.forEach((entity, idx) => {
+                        console.log(`DXF entity #${idx}:`, entity);
+
+                        if (entity.type === 'LINE') {
+                            const coords = [
+                                toLonLat(entity.start.x, entity.start.y),
+                                toLonLat(entity.end.x, entity.end.y)
+                            ];
+                            console.log(`Adding LINE entity with coords:`, coords);
+                            viewer.entities.add({
+                                polyline: {
+                                    positions: Cesium.Cartesian3.fromDegreesArray(coords.flat()),
+                                    width: 3,
+                                    material: Cesium.Color.CYAN
+                                }
+                            });
+                            entityCount++;
+                        }
+
+                        if (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') {
+                            if (entity.vertices && entity.vertices.length > 1) {
+                                const coords = entity.vertices.map(v => toLonLat(v.x, v.y));
+                                console.log(`Adding POLYLINE entity with coords:`, coords);
+                                viewer.entities.add({
+                                    polyline: {
+                                        positions: Cesium.Cartesian3.fromDegreesArray(coords.flat()),
+                                        width: 2,
+                                        material: Cesium.Color.YELLOW
+                                    }
+                                });
+                                entityCount++;
+                            }
+                        }
+
+                        if (entity.type === 'CIRCLE') {
+                            const center = toLonLat(entity.center.x, entity.center.y);
+                            const radius = entity.radius;
+                            const segments = 64;
+                            const positions = [];
+                            for (let i = 0; i < segments; i++) {
+                                const angle = (i / segments) * 2 * Math.PI;
+                                const x = center[0] + radius * Math.cos(angle);
+                                const y = center[1] + radius * Math.sin(angle);
+                                positions.push(x, y);
+                            }
+                            // Close the circle
+                            positions.push(positions[0], positions[1]);
+                            console.log(`Adding CIRCLE entity at center:`, center, "radius:", radius);
+                            viewer.entities.add({
+                                polyline: {
+                                    positions: Cesium.Cartesian3.fromDegreesArray(positions),
+                                    width: 2,
+                                    material: Cesium.Color.ORANGE
+                                }
+                            });
+                            entityCount++;
+                        }
+
+                        if (entity.type === 'POINT') {
+                            const [lon, lat] = toLonLat(entity.position.x, entity.position.y);
+                            console.log(`Adding POINT entity at:`, [lon, lat]);
+                            viewer.entities.add({
+                                position: Cesium.Cartesian3.fromDegrees(lon, lat),
+                                point: {
+                                    pixelSize: 10,
+                                    color: Cesium.Color.RED
+                                }
+                            });
+                            entityCount++;
+                        }
+
+                        // Add more entity types as needed (ARC, SPLINE, etc.)
+                    });
+
+                    showInfo(`DXF imported! ${entityCount} entities added.`);
+                    console.log(`DXF import: ${entityCount} entities added to Cesium.`);
+                } catch (err) {
+                    console.error("DXF import: Failed to parse DXF.", err);
+                    showInfo("Failed to parse DXF.");
+                }
+            };
+            reader.onerror = function(e) {
+                console.error("DXF import: FileReader error", e);
+                showInfo("Failed to read file.");
+            };
+            reader.readAsText(file);
+        }
+
+        console.log(THREE.DXFLoader);
+    </script>
+</body>
+</html>

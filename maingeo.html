@@ -1,0 +1,5253 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Advanced Geoportal</title>
+
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+
+    <!-- Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+
+    <!-- Leaflet Draw CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"
+    />
+
+    <!-- CesiumJS CSS and JS -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+    <!-- shapfe file support -->
+    <!-- Replace the existing shp script with this: -->
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Function to check if shp library is loaded
+        function checkShpLibrary() {
+          if (typeof shp !== "undefined") {
+            console.log("DOM loaded, shp available:", true);
+            // Your initialization code here
+          } else {
+            console.log("Waiting for shp library to load...");
+            setTimeout(checkShpLibrary, 100); // Check again after 100ms
+          }
+        }
+
+        checkShpLibrary();
+      });
+    </script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      .leaflet-draw.leaflet-control {
+        display: none !important;
+      }
+
+      body {
+        font-family: "Georgia", serif; /* Classic, readable font */
+        background: #fdf6e3; /* A warm, earthy base color */
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+
+      /* Navbar Styles */
+      .navbar {
+        background: #2e1a0e;
+        border-bottom: 2px solid #3e2723; /* Darker border for depth */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        padding: 5px 16px; /* Reduced vertical padding */
+        z-index: 1000;
+        position: relative;
+        min-height: 50px; /* Reduced height */
+        width: 100%;
+        overflow: visible;
+      }
+
+      /* Navbar Brand Styles */
+      .navbar-brand {
+        color: white;
+        font-size: 20px; /* Reduced font size */
+        font-weight: bold;
+        margin-right: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .navbar-brand i {
+        font-size: 24px; /* Reduced icon size */
+        color: #f5e8c7; /* Light gold color for the globe icon */
+      }
+
+      .navbar-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        position: relative;
+        min-height: 44px;
+        flex-wrap: wrap;
+        padding: 0 8px;
+        overflow: visible;
+        justify-content: flex-start;
+      }
+
+      .navbar-group {
+        display: flex;
+        align-items: center;
+        position: relative;
+        margin: 0 4px;
+      }
+
+      /* Feature Button Styles */
+      .feature-btn {
+        width: 36px; /* Reduced button size */
+        height: 36px; /* Reduced button size */
+        border-radius: 50%;
+        background: #c19a6b; /* Muted gold/brown for buttons */
+        border: 1px solid #8a6c4a;
+        color: #fff; /* White icons for contrast */
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+
+      .feature-btn > .fas:not(.fa-chevron-down) {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      .feature-btn:hover {
+        background: #a98457; /* Slightly darker on hover */
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      .feature-btn.active {
+        background: #8a6c4a; /* Darker, active state */
+        color: white;
+        border-color: #5c4831;
+      }
+
+      /* Tooltip Styles */
+      .feature-btn::after {
+        content: attr(title);
+        position: absolute;
+        bottom: -30px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #483434; /* Dark brown tooltip background */
+        color: #f5e8c7; /* Light text for readability */
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+        z-index: 1000;
+      }
+
+      .feature-btn:hover::after {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      /* Dropdown Arrow Styles */
+      .feature-btn i.fa-chevron-down {
+        position: absolute;
+        bottom: 3px; /* Adjusted for better visual alignment */
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 8px;
+        color: #f5e8c7; /* Light color for the arrow */
+      }
+
+      .feature-btn.active i.fa-chevron-down {
+        color: white;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .navbar {
+          padding: 8px 12px;
+        }
+        
+        .navbar-content {
+          gap: 6px;
+          justify-content: center;
+        }
+        
+        .feature-btn {
+          width: 36px;
+          height: 36px;
+          font-size: 14px;
+        }
+        
+        .dropdown-content {
+          position: fixed;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 90%;
+          max-width: 300px;
+        }
+      }
+
+      /* Remove all overflow-related CSS */
+      .navbar-content:not(.expanded) > .navbar-group.overflow-item,
+      .navbar-content:not(.expanded) > .navbar-group:nth-child(n + 7) {
+        display: flex !important;
+      }
+
+      /* Remove navbar toggle and overflow toggle styles */
+      .navbar-toggle,
+      .navbar-overflow-toggle,
+      .navbar-overflow-toggle.hidden {
+        display: none !important;
+      }
+
+      /* Ensure all navbar groups are visible */
+      .navbar-group {
+        display: flex !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+
+      /* ADD THIS NEW RULE */
+      .navbar-group:nth-last-child(-n + 3) .dropdown-content {
+        right: 0;
+        left: auto;
+      }
+
+      /* Dropdown Styles */
+      .dropdown-content {
+        display: none;
+        position: absolute;
+        background-color: #c19a6b; /* Matching the button color */
+        min-width: 220px;
+        max-width: 280px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 9999;
+        border-radius: 8px;
+        padding: 8px;
+        opacity: 0;
+        transform: translateY(-10px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        top: calc(100% + 5px);
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .dropdown-content.show {
+        display: block;
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* Last 3 dropdowns should align to the right */
+      .navbar-group:nth-last-child(-n + 3) .dropdown-content {
+        left: auto;
+        right: 0;
+        transform: translateX(0) translateY(-10px);
+      }
+
+      .navbar-group:nth-last-child(-n + 3) .dropdown-content.show {
+        transform: translateX(0) translateY(0);
+      }
+
+      .dropdown-section {
+        padding: 6px 0;
+      }
+
+      .dropdown-section:not(:last-child) {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        margin-bottom: 6px;
+        padding-bottom: 8px;
+      }
+
+      .dropdown-section h4 {
+        color: #2c3e50;
+        font-size: 13px;
+        margin: 0 0 6px 0;
+        padding: 0 8px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .sub-btn {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 6px 8px;
+        border: none;
+        background: none;
+        color: #2c3e50;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border-radius: 4px;
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      .sub-btn:hover {
+        background-color: rgba(52, 152, 219, 0.1);
+        color: #3498db;
+      }
+
+      .sub-btn i {
+        margin-right: 8px;
+        width: 14px;
+        text-align: center;
+        color: #3498db;
+        font-size: 12px;
+      }
+
+      /* Basemap Gallery in Dropdown */
+      #basemaps-dropdown .basemap-gallery {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        padding: 12px;
+        background: rgba(248, 249, 250, 0.5);
+        border-radius: 8px;
+        margin: 8px 0;
+      }
+
+      #basemaps-dropdown .basemap-item {
+        aspect-ratio: 1;
+        border: 2px solid rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background-size: cover;
+        background-position: center;
+        position: relative;
+        overflow: hidden;
+        min-height: 80px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      #basemaps-dropdown .basemap-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 100%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      #basemaps-dropdown .basemap-item:hover {
+        border-color: #007bff;
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 8px 16px rgba(0, 123, 255, 0.15);
+      }
+
+      #basemaps-dropdown .basemap-item:hover::before {
+        opacity: 1;
+      }
+
+      #basemaps-dropdown .basemap-item.active {
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px #007bff, 0 8px 16px rgba(0, 123, 255, 0.2);
+      }
+
+      #basemaps-dropdown .basemap-item.active::after {
+        content: '✓';
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: #007bff;
+        color: white;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      #basemaps-dropdown .basemap-label {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 8px;
+        font-size: 12px;
+        text-align: center;
+        backdrop-filter: blur(4px);
+        transform: translateY(100%);
+        transition: transform 0.3s ease;
+        font-weight: 500;
+      }
+
+      #basemaps-dropdown .basemap-item:hover .basemap-label {
+        transform: translateY(0);
+      }
+
+      #basemaps-dropdown .basemap-item.active .basemap-label {
+        transform: translateY(0);
+        background: rgba(0, 123, 255, 0.9);
+      }
+
+      /* Add preview images for basemaps */
+      #basemaps-dropdown .basemap-item[data-basemap="osm"] {
+        background-image: url('https://tile.openstreetmap.org/0/0/0.png');
+      }
+
+      #basemaps-dropdown .basemap-item[data-basemap="satellite"] {
+        background-image: url('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/0/0/0');
+      }
+
+      #basemaps-dropdown .basemap-item[data-basemap="terrain"] {
+        background-image: url('https://tile.opentopomap.org/0/0/0.png');
+      }
+
+      #basemaps-dropdown .basemap-item[data-basemap="dark"] {
+        background-image: url('https://basemaps.cartocdn.com/dark_all/0/0/0.png');
+      }
+
+      #basemaps-dropdown .basemap-item[data-basemap="esri_topo"] {
+        background-image: url('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/0/0/0');
+      }
+
+      #basemaps-dropdown .basemap-item[data-basemap="esri_ocean"] {
+        background-image: url('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/0/0/0');
+      }
+
+      #basemaps-dropdown .basemap-item[data-basemap="google_hybrid"] {
+        background-image: url('https://mt1.google.com/vt/lyrs=y&x=0&y=0&z=0');
+      }
+
+      /* File Upload in Dropdown */
+      .file-upload {
+        border: 2px dashed rgba(52, 152, 219, 0.3);
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background-color: rgba(52, 152, 219, 0.05);
+      }
+
+      .file-upload:hover {
+        border-color: #3498db;
+        background-color: rgba(52, 152, 219, 0.1);
+      }
+
+      .file-upload input[type="file"] {
+        display: none;
+      }
+
+      /* Search Input */
+      .search-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+        margin-bottom: 8px;
+        font-size: 13px;
+        transition: all 0.3s ease;
+      }
+
+      .search-input:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+      }
+
+      /* Layer Selector */
+      .layer-selector {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 6px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        transition: all 0.2s ease;
+        background-color: white;
+      }
+
+      .layer-selector:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        outline: none;
+      }
+
+      /* Legend Container */
+      .legend-container {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        display: none;
+      }
+
+      .legend-container h4 {
+        margin-bottom: 10px;
+        font-size: 14px;
+        color: #333;
+      }
+
+      .feature-btn i {
+        margin-right: 10px;
+        width: 20px;
+        text-align: center;
+      }
+
+      .expand-icon {
+        transition: transform 0.3s ease;
+      }
+
+      .expand-icon.rotated {
+        transform: rotate(180deg);
+      }
+
+      /* Expandable Content */
+      .expandable-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        background: rgba(248, 249, 250, 0.5);
+        border-radius: 8px;
+        margin-top: 5px;
+      }
+
+      .expandable-content.expanded {
+        max-height: 500px;
+        padding: 10px;
+      }
+
+      .sub-btn {
+        width: 100%;
+        padding: 8px 12px;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        cursor: pointer;
+        margin-bottom: 5px;
+        transition: all 0.2s ease;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+      }
+
+      .sub-btn:hover {
+        background: #f8f9fa;
+        border-color: #007bff;
+      }
+
+      .sub-btn.active {
+        background: #007bff;
+        color: white;
+        border-color: #0056b3;
+      }
+
+      .sub-btn i {
+        margin-right: 8px;
+        width: 16px;
+        text-align: center;
+      }
+
+      /* Map Container */
+      .map-container {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+      }
+
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+
+      #cesiumContainer {
+        height: 100%;
+        width: 100%;
+        display: none; /* Initially hidden */
+      }
+
+      /* Basemap Gallery */
+      .basemap-gallery {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .basemap-item {
+        aspect-ratio: 1;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background-size: cover;
+        background-position: center;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .basemap-item:hover {
+        border-color: #007bff;
+        transform: scale(1.05);
+      }
+
+      .basemap-item.active {
+        border-color: #007bff;
+        box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
+      }
+
+      .basemap-label {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 4px 8px;
+        font-size: 11px;
+        text-align: center;
+      }
+
+      /* Layer Control */
+      .layer-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        margin-bottom: 5px;
+      }
+
+      .layer-checkbox {
+        margin-right: 10px;
+      }
+
+      .layer-name {
+        flex: 1;
+        font-size: 13px;
+      }
+
+      .layer-opacity {
+        width: 60px;
+        margin-left: 10px;
+      }
+
+      /* File Upload */
+      .file-upload {
+        border: 2px dashed #007bff;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        background: rgba(0, 123, 255, 0.05);
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .file-upload:hover {
+        background: rgba(0, 123, 255, 0.1);
+        border-color: #0056b3;
+        transform: translateY(-2px);
+      }
+
+      .file-upload input {
+        display: none;
+      }
+
+      /* Coordinate Display */
+      .coordinate-display {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        z-index: 1000;
+      }
+
+      /* Custom Scrollbar */
+      .sidebar-content::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .sidebar-content::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+      }
+
+      .sidebar-content::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 4px;
+      }
+
+      .sidebar-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.5);
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .navbar {
+          padding: 8px 12px;
+          height: auto;
+          min-height: 60px;
+          flex-wrap: wrap;
+        }
+
+        .navbar-content {
+          gap: 15px;
+        }
+
+        .feature-btn {
+          font-size: 12px;
+          padding: 6px 12px;
+        }
+
+        .dropdown-content {
+          min-width: 250px;
+          max-height: 50vh;
+        }
+
+        .basemap-gallery {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      /* Additional CSS for Utility Tools */
+      .dropdown-section {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+      }
+
+      .dropdown-section:not(:last-child) {
+        border-bottom: 1px solid #e9ecef;
+      }
+
+      .dropdown-section h4 {
+        margin: 0 0 10px 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #495057;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .sub-btn i {
+        margin-right: 8px;
+        width: 16px;
+        text-align: center;
+        color: #6c757d;
+      }
+
+      .sub-btn:hover i {
+        color: #007bff;
+      }
+
+      /* Ensure dropdown content has proper spacing */
+      .dropdown-content {
+        min-width: 250px;
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 15px;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .dropdown-content {
+          min-width: 200px;
+          max-height: 300px;
+        }
+
+        .dropdown-section h4 {
+          font-size: 11px;
+        }
+
+        .sub-btn {
+          font-size: 12px;
+          padding: 6px 10px;
+        }
+      }
+
+      /* Add these styles in the <style> section */
+      .advanced-tools-dropdown {
+        position: relative;
+      }
+
+      .advanced-tools-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        padding: 8px 0;
+        min-width: 220px;
+        display: none;
+        z-index: 1002;
+      }
+
+      .advanced-tools-menu.show {
+        display: block;
+      }
+
+      .advanced-tools-item {
+        padding: 8px 16px;
+        display: flex;
+        align-items: center;
+        color: #2c3e50;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+
+      .advanced-tools-item:hover {
+        background: #f8f9fa;
+        color: #3498db;
+      }
+
+      .advanced-tools-item i {
+        margin-right: 8px;
+        width: 16px;
+        text-align: center;
+      }
+
+      .legend-control {
+        background: white;
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        margin: 5px 0;
+      }
+
+      .legend-color {
+        width: 20px;
+        height: 20px;
+        margin-right: 8px;
+        border-radius: 3px;
+      }
+
+      .legend-label {
+        font-size: 12px;
+        color: #2c3e50;
+      }
+    </style>
+    <!-- Add these libraries in the head section -->
+    <script src="https://unpkg.com/dxf@4.7.0/dist/dxf.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js"></script>
+    <script src="https://unpkg.com/leaflet-dxf@1.0.0/dist/leaflet-dxf.min.js"></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  </head>
+
+  <body>
+    <div class="container">
+      <!-- Navbar -->
+      <nav id="navbar" class="navbar">
+        <div class="navbar-brand">
+          <i class="fas fa-globe"></i>
+          S.T.B.T.T GeoPortal
+        </div>
+
+        <div id="navbarContent" class="navbar-content">
+          <!-- Basemaps -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('basemaps', event)" title="Basemaps">
+              <i class="fas fa-map"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="basemaps-dropdown">
+              <div class="dropdown-section">
+                <div class="basemap-gallery">
+                  <div
+                    class="basemap-item active"
+                    onclick="changeBasemap('osm')"
+                    data-basemap="osm"
+                  >
+                    <div class="basemap-label">OpenStreetMap</div>
+                  </div>
+                  <div
+                    class="basemap-item"
+                    onclick="changeBasemap('satellite')"
+                    data-basemap="satellite"
+                  >
+                    <div class="basemap-label">Satellite</div>
+                  </div>
+                  <div
+                    class="basemap-item"
+                    onclick="changeBasemap('terrain')"
+                    data-basemap="terrain"
+                  >
+                    <div class="basemap-label">Terrain</div>
+                  </div>
+                  <div
+                    class="basemap-item"
+                    onclick="changeBasemap('dark')"
+                    data-basemap="dark"
+                  >
+                    <div class="basemap-label">Dark Mode</div>
+                  </div>
+                  <div
+                    class="basemap-item"
+                    onclick="changeBasemap('esri_topo')"
+                    data-basemap="esri_topo"
+                  >
+                    <div class="basemap-label">Esri Topography</div>
+                  </div>
+                  <div
+                    class="basemap-item"
+                    onclick="changeBasemap('esri_ocean')"
+                    data-basemap="esri_ocean"
+                  >
+                    <div class="basemap-label">Esri Ocean</div>
+                  </div>
+                  <div
+                    class="basemap-item"
+                    onclick="changeBasemap('google_hybrid')"
+                    data-basemap="google_hybrid"
+                  >
+                    <div class="basemap-label">Google Hybrid</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- WMS Layers -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('wmsLayers', event)" title="Admin Boundaries">
+              <i class="fas fa-layer-group"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="wmsLayers-dropdown">
+              <div class="dropdown-section">
+                <h4>Select Layer</h4>
+                <select id="layerSelector" class="layer-selector">
+                  <option value="">Select Layer</option>
+                  <option value="india_boundary">India Boundary</option>
+                  <option value="maharashtra_boundary">
+                    Maharashtra Boundary
+                  </option>
+                  <option value="division_boundary">Division Boundary</option>
+                  <option value="district_boundary">District Boundary</option>
+                  <option value="taluka_boundary">Taluka Boundary</option>
+                  <option value="village_boundary">Village Boundary</option>
+                  <option value="hq_tal_dist_div">HQ TAL DIST DIV</option>
+                </select>
+                <div id="legendContainer" class="legend-container">
+                  <h4>Legend</h4>
+                  <div id="legendContent"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Layer Visibility -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('layerVisibility', event)" title="Layer Control">
+              <i class="fas fa-eye"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="layerVisibility-dropdown">
+              <div class="dropdown-section">
+                <h4>Active Layers</h4>
+                <div id="layerList">
+                  <!-- Layer items will be populated here -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Draw Tools -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('drawTools', event)" title="Draw Tools">
+              <i class="fas fa-draw-polygon"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="drawTools-dropdown">
+              <div class="dropdown-section">
+                <h4>Drawing Tools</h4>
+                <button class="sub-btn" onclick="selectDrawTool('point')">
+                  <i class="fas fa-map-pin"></i> Draw Point
+                </button>
+                <button class="sub-btn" onclick="selectDrawTool('polyline')">
+                  <i class="fas fa-route"></i> Draw Polyline
+                </button>
+                <button class="sub-btn" onclick="selectDrawTool('polygon')">
+                  <i class="fas fa-draw-polygon"></i> Draw Polygon
+                </button>
+                <button class="sub-btn" onclick="selectDrawTool('rectangle')">
+                  <i class="fas fa-square"></i> Draw Rectangle
+                </button>
+                <button class="sub-btn" onclick="selectDrawTool('circle')">
+                  <i class="fas fa-circle"></i> Draw Circle
+                </button>
+                <button class="sub-btn" onclick="selectDrawTool('edit')">
+                  <i class="fas fa-edit"></i> Edit Features
+                </button>
+                <button class="sub-btn" onclick="selectDrawTool('delete')">
+                  <i class="fas fa-trash"></i> Delete Features
+                </button>
+                <button class="sub-btn" onclick="clearAllDrawings()">
+                  <i class="fas fa-eraser"></i> Clear All
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Measurement Tools -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('measurements', event)" title="Measurements">
+              <i class="fas fa-ruler"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="measurements-dropdown">
+              <div class="dropdown-section">
+                <h4>Measurement Tools</h4>
+                <button class="sub-btn" onclick="startMeasurement('distance')">
+                  <i class="fas fa-ruler-horizontal"></i> Measure Distance
+                </button>
+                <button class="sub-btn" onclick="startMeasurement('area')">
+                  <i class="fas fa-vector-square"></i> Measure Area
+                </button>
+                <button class="sub-btn" onclick="clearMeasurements()">
+                  <i class="fas fa-times"></i> Clear Measurements
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Tools -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('advancedTools', event)" title="Advanced Tools">
+              <i class="fas fa-tools"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="advancedTools-dropdown">
+              <div class="dropdown-section">
+                <h4>Advanced Tools</h4>
+                <button class="sub-btn" onclick="findMyLocation()">
+                  <i class="fas fa-location-arrow"></i> Find My Location
+                </button>
+                <button class="sub-btn" onclick="reverseGeocoding()">
+                  <i class="fas fa-map-marker-alt"></i> Reverse Geocoding
+                </button>
+                <button class="sub-btn" onclick="getPointElevation()">
+                  <i class="fas fa-mountain"></i> Get Point Elevation
+                </button>
+                <button class="sub-btn" onclick="findIntersections()">
+                  <i class="fas fa-crosshairs"></i> Find Intersections
+                </button>
+                <button class="sub-btn" onclick="performBufferAnalysis()">
+                  <i class="fas fa-circle"></i> Buffer Analysis
+                </button>
+                <button class="sub-btn" onclick="toggleLegend()">
+                  <i class="fas fa-list"></i> Show Legend
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Utility Tools -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('utilityTools', event)" title="Utility Tools">
+              <i class="fas fa-cogs"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="utilityTools-dropdown">
+              <div class="dropdown-section">
+                <h4>Grid & Reference</h4>
+                <button
+                  class="sub-btn"
+                  onclick="toggleUtilityTool('gridOverlay')"
+                >
+                  <i class="fas fa-th"></i> Grid Overlay
+                </button>
+                <button
+                  class="sub-btn"
+                  onclick="toggleUtilityTool('graticule')"
+                >
+                  <i class="fas fa-globe"></i> Graticule
+                </button>
+                <button
+                  class="sub-btn"
+                  onclick="toggleUtilityTool('crosshairs')"
+                >
+                  <i class="fas fa-crosshairs"></i> Crosshairs
+                </button>
+              </div>
+              <div class="dropdown-section">
+                <h4>Position & Navigation</h4>
+                <button
+                  class="sub-btn"
+                  onclick="toggleUtilityTool('mousePosition')"
+                >
+                  <i class="fas fa-mouse-pointer"></i> Mouse Position
+                </button>
+                <button
+                  class="sub-btn"
+                  onclick="activateUtilityTool('distanceFromPoint')"
+                >
+                  <i class="fas fa-bullseye"></i> Distance from Point
+                </button>
+                <button
+                  class="sub-btn"
+                  onclick="activateUtilityTool('bearingCalculator')"
+                >
+                  <i class="fas fa-compass"></i> Bearing Calculator
+                </button>
+              </div>
+              <div class="dropdown-section">
+                <h4>Conversion Tools</h4>
+                <button
+                  class="sub-btn"
+                  onclick="openUtilityTool('coordinateConverter')"
+                >
+                  <i class="fas fa-exchange-alt"></i> Coordinate Converter
+                </button>
+                <button
+                  class="sub-btn"
+                  onclick="toggleUtilityTool('unitsConverter')"
+                >
+                  <i class="fas fa-ruler-combined"></i> Units Converter
+                </button>
+              </div>
+              <div class="dropdown-section">
+                <h4>Analysis Tools</h4>
+                <button
+                  class="sub-btn"
+                  onclick="activateUtilityTool('slopeAnalysis')"
+                >
+                  <i class="fas fa-chart-line"></i> Slope Analysis
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Export -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('export', event)" title="Export">
+              <i class="fas fa-file-export"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="export-dropdown">
+              <div class="dropdown-section">
+                <h4>Export Map Image</h4>
+                <button class="sub-btn" onclick="exportMapAsImage('png')">
+                  <i class="fas fa-image"></i> Export as PNG
+                </button>
+                <button class="sub-btn" onclick="exportMapAsImage('jpg')">
+                  <i class="fas fa-image"></i> Export as JPG
+                </button>
+              </div>
+              <div class="dropdown-section">
+                <h4>Export Features</h4>
+                <button class="sub-btn" onclick="exportFeatures('geojson')">
+                  <i class="fas fa-file-code"></i> Export as GeoJSON
+                </button>
+                <button class="sub-btn" onclick="exportFeatures('kml')">
+                  <i class="fas fa-file-alt"></i> Export as KML
+                </button>
+                <button class="sub-btn" onclick="exportFeatures('shapefile')">
+                  <i class="fas fa-file-archive"></i> Export as Shapefile
+                </button>
+              </div>
+              <div class="dropdown-section">
+                <h4>Share & Report</h4>
+                <button class="sub-btn" onclick="shareMapView()">
+                  <i class="fas fa-share-alt"></i> Share Map View
+                </button>
+                <button class="sub-btn" onclick="generatePDFReport()">
+                  <i class="fas fa-file-pdf"></i> Generate PDF Report
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- File Upload -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('fileUpload', event)" title="File Upload">
+              <i class="fas fa-upload"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="fileUpload-dropdown">
+              <div class="dropdown-section">
+                <h4>Upload Files</h4>
+                <div
+                  class="file-upload"
+                  onclick="document.getElementById('fileInput').click()"
+                >
+                  <i
+                    class="fas fa-cloud-upload-alt"
+                    style="
+                      font-size: 1.5rem;
+                      color: #007bff;
+                      margin-bottom: 8px;
+                    "
+                  ></i>
+                  <p style="font-size: 12px">Click to upload files</p>
+                  <p style="font-size: 10px; color: #666; margin-top: 4px">
+                    Supports: GeoJSON, KML, GPX, Shapefile (ZIP)
+                  </p>
+                  <input
+                    type="file"
+                    id="fileInput"
+                    accept=".geojson,.kml,.gpx,.json,.zip,.shp"
+                    multiple
+                    onchange="handleFileUpload(event)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Import CAD -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="document.getElementById('cadFileInput').click()" title="Import CAD">
+              <i class="fas fa-drafting-compass"></i>
+            </button>
+            <input type="file" id="cadFileInput" accept=".dxf" style="display: none" onchange="handleCADFile(event)" />
+          </div>
+
+          <!-- Search -->
+          <div class="navbar-group">
+            <button class="feature-btn" onclick="toggleDropdown('search', event)" title="Search">
+              <i class="fas fa-search"></i>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="dropdown-content" id="search-dropdown">
+              <div class="dropdown-section">
+                <h4>Search Places</h4>
+                <input
+                  type="text"
+                  id="searchInput"
+                  placeholder="Search for places..."
+                  class="search-input"
+                />
+                <button class="sub-btn" onclick="performSearch()">
+                  <i class="fas fa-search"></i> Search
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="navbar-group">
+            <button id="map-view-toggle-btn" class="feature-btn" onclick="toggleMapView()" title="Toggle 3D View">
+                <i class="fas fa-globe-americas"></i>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Map Container -->
+      <div class="map-container">
+        <div id="map"></div>
+        <div id="cesiumContainer"></div>
+        <div class="coordinate-display" id="coordinates">
+          Lat: 0.000000, Lng: 0.000000
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    
+    <!-- CAD Import Libraries -->
+    <script src="https://unpkg.com/dxf@4.7.0/dist/dxf.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js"></script>
+    <script src="https://unpkg.com/leaflet-dxf@1.0.0/dist/leaflet-dxf.min.js"></script>
+    
+    <!-- Custom Scripts -->
+    <script src="cad-import.js"></script>
+
+    <script>
+      // Global variables
+      let map;
+      let cesiumViewer;
+      let is3D = false;
+      let drawControl;
+      let drawnItems;
+      let basemaps = {};
+      let currentBasemap = "osm";
+      let layerControl;
+      let overlayLayers = {};
+      let measurementLayer;
+      let isDrawing = false;
+      let currentDrawTool = null;
+      let currentWMSLayer = null;
+      let wmsLayers = {};
+      let isMeasuring = false;
+      let measurementType = null;
+      let isNavbarExpanded = false;
+
+      function toggleMapView() {
+        // If you want to pass the current map center and zoom to 3D mode:
+        if (typeof map !== "undefined" && map.getCenter && map.getZoom) {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            window.location.href = `Geo3D.html?lat=${center.lat}&lng=${center.lng}&zoom=${zoom}`;
+        } else {
+            // Fallback: just go to 3D mode
+            window.location.href = "Geo3D.html";
+        }
+      }
+
+      function initCesium() {
+        // IMPORTANT: Replace with your own Cesium ION access token.
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlZWY2MzA0ZC03NmU4LTRjOTEtODQwNi1jYTdkNzJlMWE4MTUiLCJpZCI6MzE0NDcwLCJpYXQiOjE3NTA1OTUwNTN9.FDUqMDehocIQpHURWp-EsFICW-jcKn7Cf_jGhWeYRCY';
+
+        cesiumViewer = new Cesium.Viewer('cesiumContainer', {
+            terrain: Cesium.Terrain.fromWorldTerrain(),
+            // We use our own navbar, so disable most of Cesium's default widgets.
+            animation: false,
+            baseLayerPicker: false,
+            fullscreenButton: false,
+            geocoder: false,
+            homeButton: false,
+            infoBox: false,
+            sceneModePicker: false,
+            selectionIndicator: false,
+            timeline: false,
+            navigationHelpButton: false,
+        });
+
+        // Set initial camera view to India
+        cesiumViewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(78.9629, 20.5937, 4000000), // Lng, Lat, Altitude
+        });
+      }
+      
+      function syncFeaturesToCesium() {
+        if (!cesiumViewer) return;
+
+        // Clear any existing data
+        cesiumViewer.dataSources.removeAll();
+
+        // Add drawn items from Leaflet
+        if (drawnItems && drawnItems.getLayers().length > 0) {
+            const geojson = drawnItems.toGeoJSON();
+            Cesium.GeoJsonDataSource.load(geojson, {
+                stroke: Cesium.Color.HOTPINK,
+                fill: Cesium.Color.PINK.withAlpha(0.5),
+                strokeWidth: 3,
+            }).then(dataSource => {
+                cesiumViewer.dataSources.add(dataSource);
+            });
+        }
+
+        // Add the current WMS layer
+        if (currentWMSLayer && wmsLayers[currentWMSLayer]) {
+            const wmsLayerInfo = wmsLayers[currentWMSLayer];
+            const wmsProvider = new Cesium.WebMapServiceImageryProvider({
+                url: wmsLayerInfo._url,
+                layers: wmsLayerInfo.wmsParams.layers,
+                parameters: {
+                    transparent: true,
+                    format: 'image/png'
+                }
+            });
+            cesiumViewer.imageryLayers.addImageryProvider(wmsProvider);
+        }
+      }
+
+      // Export Functions - Making them globally accessible
+      window.exportMapAsImage = function(format) {
+        console.log('Starting map export...');
+        if (!map) {
+          alert("Map not initialized");
+          return;
+        }
+
+        // Create a temporary container for the map
+        const container = document.createElement('div');
+        container.style.width = map.getSize().x + 'px';
+        container.style.height = map.getSize().y + 'px';
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        document.body.appendChild(container);
+
+        // Clone the map container
+        const mapClone = map.getContainer().cloneNode(true);
+        container.appendChild(mapClone);
+
+        // Use html2canvas to capture the map
+        html2canvas(mapClone, {
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: null,
+          scale: 2 // Higher quality
+        }).then(canvas => {
+          // Convert to image
+          const imgData = canvas.toDataURL(`image/${format}`);
+          
+          // Create download link
+          const link = document.createElement('a');
+          link.download = `map-export.${format}`;
+          link.href = imgData;
+          link.click();
+
+          // Cleanup
+          document.body.removeChild(container);
+        }).catch(error => {
+          console.error('Error exporting map:', error);
+          alert('Error exporting map. Please try again.');
+        });
+      };
+
+      window.exportFeatures = function(format) {
+        console.log('Starting feature export...');
+        console.log('Map:', map);
+        console.log('Drawn Items:', drawnItems);
+
+        if (!map) {
+          alert("Map not initialized");
+          return;
+        }
+
+        if (!drawnItems) {
+          console.log('No drawnItems found, checking for drawn items in map...');
+          // Try to find drawn items in the map
+          const layers = map._layers;
+          let foundDrawnItems = null;
+          
+          for (let key in layers) {
+            if (layers[key] instanceof L.FeatureGroup) {
+              foundDrawnItems = layers[key];
+              break;
+            }
+          }
+
+          if (!foundDrawnItems) {
+            alert("No drawing layer found. Please draw some features first.");
+            return;
+          }
+          drawnItems = foundDrawnItems;
+        }
+
+        console.log('Getting GeoJSON from drawn items...');
+        const features = drawnItems.toGeoJSON();
+        console.log('Features:', features);
+
+        if (!features || !features.features || features.features.length === 0) {
+          alert("No features selected. Please draw some features first.");
+          return;
+        }
+
+        let data, mimeType, extension;
+        try {
+          switch (format) {
+            case 'geojson':
+              console.log('Exporting as GeoJSON...');
+              data = JSON.stringify(features, null, 2);
+              mimeType = 'application/json';
+              extension = 'geojson';
+              break;
+            case 'kml':
+              console.log('Exporting as KML...');
+              data = toKML(features);
+              mimeType = 'application/vnd.google-earth.kml+xml';
+              extension = 'kml';
+              break;
+            case 'shapefile':
+              alert("Shapefile export requires server-side processing. This feature is not available in the browser version.");
+              return;
+            default:
+              alert("Unsupported format");
+              return;
+          }
+
+          console.log('Creating download...');
+          // Create download link
+          const blob = new Blob([data], { type: mimeType });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `map-features.${extension}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
+          console.log('Export completed successfully');
+        } catch (error) {
+          console.error('Error during export:', error);
+          alert('Error exporting features: ' + error.message);
+        }
+      };
+
+      window.shareMapView = function() {
+        if (!map) {
+          alert("Map not initialized");
+          return;
+        }
+
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const url = `${window.location.origin}${window.location.pathname}?lat=${center.lat}&lng=${center.lng}&zoom=${zoom}`;
+        
+        // Create a temporary input element
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        
+        try {
+          // Try using the modern clipboard API
+          navigator.clipboard.writeText(url).then(() => {
+            alert('Map view URL copied to clipboard!');
+          }).catch(() => {
+            // Fallback to execCommand
+            document.execCommand('copy');
+            alert('Map view URL copied to clipboard!');
+          });
+        } catch (error) {
+          console.error('Error copying to clipboard:', error);
+          alert('Error copying URL. Please copy it manually: ' + url);
+        }
+        
+        document.body.removeChild(input);
+      };
+
+      window.generatePDFReport = function() {
+        if (!map) {
+          alert("Map not initialized");
+          return;
+        }
+
+        // Create a temporary container for the report
+        const container = document.createElement('div');
+        container.style.width = '800px';
+        container.style.padding = '20px';
+        document.body.appendChild(container);
+
+        // Capture map as image
+        html2canvas(map.getContainer(), {
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: null,
+          scale: 2 // Higher quality
+        }).then(canvas => {
+          // Create report content
+          const report = document.createElement('div');
+          report.innerHTML = `
+            <h2>Map Report</h2>
+            <p>Generated on: ${new Date().toLocaleString()}</p>
+            <p>Center: ${map.getCenter().lat.toFixed(6)}, ${map.getCenter().lng.toFixed(6)}</p>
+            <p>Zoom Level: ${map.getZoom()}</p>
+            <img src="${canvas.toDataURL()}" style="width: 100%; margin: 20px 0;">
+            <h3>Active Layers:</h3>
+            <ul>
+              ${Object.keys(overlayLayers).map(layer => `<li>${layer}</li>`).join('')}
+            </ul>
+          `;
+          container.appendChild(report);
+
+          // Generate PDF
+          const opt = {
+            margin: 1,
+            filename: 'map-report.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+          };
+
+          html2pdf().set(opt).from(container).save();
+          
+          // Cleanup
+          document.body.removeChild(container);
+        }).catch(error => {
+          console.error('Error generating PDF:', error);
+          alert('Error generating PDF report. Please try again.');
+        });
+      };
+
+      // Helper function for KML conversion
+      function toKML(geojson) {
+        console.log('Converting to KML...');
+        let kml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+        kml += '<kml xmlns="http://www.opengis.net/kml/2.2">\n';
+        kml += '<Document>\n';
+
+        geojson.features.forEach((feature, index) => {
+          console.log(`Processing feature ${index}:`, feature);
+          
+          if (feature.geometry.type === 'Point') {
+            kml += '<Placemark>\n';
+            kml += `<Point>\n<coordinates>${feature.geometry.coordinates.join(',')}</coordinates>\n</Point>\n`;
+            kml += '</Placemark>\n';
+          } else if (feature.geometry.type === 'LineString') {
+            kml += '<Placemark>\n';
+            kml += `<LineString>\n<coordinates>${feature.geometry.coordinates.map(coord => coord.join(',')).join(' ')}</coordinates>\n</LineString>\n`;
+            kml += '</Placemark>\n';
+          } else if (feature.geometry.type === 'Polygon') {
+            kml += '<Placemark>\n';
+            kml += `<Polygon>\n<outerBoundaryIs>\n<LinearRing>\n<coordinates>${feature.geometry.coordinates[0].map(coord => coord.join(',')).join(' ')}</coordinates>\n</LinearRing>\n</outerBoundaryIs>\n</Polygon>\n`;
+            kml += '</Placemark>\n';
+          } else {
+            console.warn(`Unsupported geometry type: ${feature.geometry.type}`);
+          }
+        });
+
+        kml += '</Document>\n</kml>';
+        console.log('KML conversion completed');
+        return kml;
+      }
+
+      // Add required libraries
+      const html2canvasScript = document.createElement('script');
+      html2canvasScript.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
+      document.head.appendChild(html2canvasScript);
+
+      const html2pdfScript = document.createElement('script');
+      html2pdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      document.head.appendChild(html2pdfScript);
+
+      // Reverse Geocoding Function
+      window.reverseGeocoding = function() {
+        if (!map) {
+          alert("Map not initialized");
+          return;
+        }
+
+        // Change cursor
+        map.getContainer().style.cursor = 'crosshair';
+
+        // Add instruction control
+        const instruction = L.control({ position: 'topright' });
+        instruction.onAdd = function() {
+          const div = L.DomUtil.create('div', 'instruction-control');
+          div.innerHTML = 'Click on map to get address information';
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '5px';
+          div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+          return div;
+        };
+        instruction.addTo(map);
+
+        // Handle map click
+        function handleMapClick(e) {
+          const { lat, lng } = e.latlng;
+
+          // Create marker
+          const marker = L.marker([lat, lng]).addTo(map);
+
+          // Fetch address data
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'Geoportal/1.0'
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            // Format address information
+            const address = data.display_name || 'Address not found';
+            const details = data.address || {};
+            let popupContent = `
+              <div class="reverse-geocoding-popup">
+                <strong>Address:</strong><br>
+                ${address}<br><br>
+                <strong>Details:</strong><br>
+            `;
+
+            // Add address components if available
+            if (details) {
+              if (details.road) popupContent += `Road: ${details.road}<br>`;
+              if (details.house_number) popupContent += `House Number: ${details.house_number}<br>`;
+              if (details.suburb) popupContent += `Suburb: ${details.suburb}<br>`;
+              if (details.city) popupContent += `City: ${details.city}<br>`;
+              if (details.state) popupContent += `State: ${details.state}<br>`;
+              if (details.country) popupContent += `Country: ${details.country}<br>`;
+              if (details.postcode) popupContent += `Postcode: ${details.postcode}<br>`;
+            }
+
+            popupContent += '</div>';
+
+            // Add popup to marker
+            marker.bindPopup(popupContent).openPopup();
+          })
+          .catch(error => {
+            console.error('Error fetching address:', error);
+            marker.bindPopup('Error fetching address information').openPopup();
+          });
+
+          // Cleanup
+          map.removeControl(instruction);
+          map.off('click', handleMapClick);
+          map.getContainer().style.cursor = '';
+        }
+
+        // Add click handler
+        map.on('click', handleMapClick);
+      };
+
+      // Utility Tools State Variables
+      let utilityToolsState = {
+        gridOverlay: false,
+        graticule: false,
+        crosshairs: false,
+        mousePosition: false,
+        unitsConverter: false
+      };
+      let gridLayer = null;
+      let graticuleLayer = null;
+      let crosshairsMarker = null;
+      let mousePositionControl = null;
+      let bearingLine = null;
+      let distanceCircles = [];
+      let currentUnit = 'metric';
+
+      // Initialize the map
+      function initializeMap() {
+        if (map) {
+          console.log("Map already initialized");
+          return;
+        }
+        // Create map
+        map = L.map("map").setView([20.5937, 78.9629], 5); // India center
+
+        // Initialize drawn items layer
+        drawnItems = new L.FeatureGroup();
+        drawnItems.options.zIndex = 2000; // Add this line
+        map.addLayer(drawnItems);
+
+        // Initialize measurement layer
+        measurementLayer = new L.FeatureGroup();
+        measurementLayer.options.zIndex = 2000; // Add this line
+        map.addLayer(measurementLayer);
+
+        // Advanced Tools Implementation
+        let userLocationMarker = null;
+        let elevationMarker = null;
+        let intersectionMarkers = [];
+        let bufferLayer = null;
+        let legendControl = null;
+
+        // Find My Location
+        window.findMyLocation = function() {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser');
+                return;
+            }
+
+            // Remove existing location marker if any
+            if (userLocationMarker) {
+                map.removeLayer(userLocationMarker);
+            }
+
+            // Show loading state
+            const locationBtn = document.querySelector('[onclick="findMyLocation()"]');
+            const originalText = locationBtn.innerHTML;
+            locationBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding Location...';
+            locationBtn.disabled = true;
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const { latitude, longitude } = position.coords;
+                    
+                    // Create and add marker
+                    userLocationMarker = L.marker([latitude, longitude], {
+                        icon: L.divIcon({
+                            className: 'user-location-marker',
+                            html: '<i class="fas fa-location-arrow"></i>',
+                            iconSize: [24, 24]
+                        })
+                    }).addTo(map);
+
+                    // Add popup with coordinates
+                    userLocationMarker.bindPopup(`
+                        <div class="location-popup">
+                            <strong>Your Location</strong><br>
+                            Latitude: ${latitude.toFixed(6)}<br>
+                            Longitude: ${longitude.toFixed(6)}
+                        </div>
+                    `).openPopup();
+
+                    // Center map on location
+                    map.setView([latitude, longitude], 15);
+
+                    // Reset button state
+                    locationBtn.innerHTML = originalText;
+                    locationBtn.disabled = false;
+                },
+                function(error) {
+                    alert('Error getting your location: ' + error.message);
+                    locationBtn.innerHTML = originalText;
+                    locationBtn.disabled = false;
+                }
+            );
+        };
+
+        // Get Point Elevation
+        window.getPointElevation = function() {
+            let clickHandler = null;
+
+            // Remove existing elevation marker if any
+            if (elevationMarker) {
+                map.removeLayer(elevationMarker);
+            }
+
+            // Show instructions
+            const elevationBtn = document.querySelector('[onclick="getPointElevation()"]');
+            const originalText = elevationBtn.innerHTML;
+            elevationBtn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Click on map...';
+            elevationBtn.disabled = true;
+
+            // Function to get elevation from coordinates
+            async function getElevation(lat, lng) {
+                try {
+                    const response = await fetch(`https://api.opentopodata.org/v1/aster30m?locations=${lat},${lng}`);
+                    const data = await response.json();
+                    return data.results[0].elevation;
+                } catch (error) {
+                    console.error('Error fetching elevation:', error);
+                    return null;
+                }
+            }
+
+            // Handle map click
+            clickHandler = async function(e) {
+                const { lat, lng } = e.latlng;
+                
+                // Create marker
+                elevationMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'elevation-marker',
+                        html: '<i class="fas fa-mountain"></i>',
+                        iconSize: [24, 24]
+                    })
+                }).addTo(map);
+
+                // Get elevation
+                const elevation = await getElevation(lat, lng);
+                
+                // Add popup with elevation
+                elevationMarker.bindPopup(`
+                    <div class="elevation-popup">
+                        <strong>Elevation Data</strong><br>
+                        Latitude: ${lat.toFixed(6)}<br>
+                        Longitude: ${lng.toFixed(6)}<br>
+                        Elevation: ${elevation ? elevation.toFixed(2) + ' meters' : 'Not available'}
+                    </div>
+                `).openPopup();
+
+                // Remove click handler
+                map.off('click', clickHandler);
+                
+                // Reset button state
+                elevationBtn.innerHTML = originalText;
+                elevationBtn.disabled = false;
+            };
+
+            // Add click handler to map
+            map.on('click', clickHandler);
+
+            // Add cancel button
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'sub-btn';
+            cancelBtn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+            cancelBtn.onclick = function() {
+                map.off('click', clickHandler);
+                elevationBtn.innerHTML = originalText;
+                elevationBtn.disabled = false;
+                this.remove();
+            };
+            document.querySelector('#advancedTools-dropdown .dropdown-section').appendChild(cancelBtn);
+        };
+
+        // Find Intersections
+        window.findIntersections = function() {
+            let points = [];
+            let tempLine = null;
+            let isDrawing = false;
+
+            // Clear existing intersections
+            intersectionMarkers.forEach(marker => map.removeLayer(marker));
+            intersectionMarkers = [];
+
+            const intersectionBtn = document.querySelector('[onclick="findIntersections()"]');
+            const originalText = intersectionBtn.innerHTML;
+            intersectionBtn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Draw lines...';
+            intersectionBtn.disabled = true;
+
+            // Handle map click
+            function handleClick(e) {
+                const { lat, lng } = e.latlng;
+                points.push([lat, lng]);
+
+                // Add point marker
+                L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'intersection-point',
+                        html: '<i class="fas fa-circle"></i>',
+                        iconSize: [8, 8]
+                    })
+                }).addTo(map);
+
+                if (points.length === 1) {
+                    isDrawing = true;
+                } else if (points.length === 2) {
+                    // Draw line between points
+                    if (tempLine) {
+                        map.removeLayer(tempLine);
+                    }
+                    tempLine = L.polyline(points, {
+                        color: '#3498db',
+                        weight: 2,
+                        dashArray: '5, 5'
+                    }).addTo(map);
+
+                    // Find intersections with existing lines
+                    findLineIntersections(points[0], points[1]);
+                    
+                    // Reset for next line
+                    points = [];
+                    isDrawing = false;
+                }
+            }
+
+            // Find intersections with existing lines
+            function findLineIntersections(start, end) {
+                const lines = [];
+                map.eachLayer(layer => {
+                    if (layer instanceof L.Polyline && layer !== tempLine) {
+                        lines.push(layer);
+                    }
+                });
+
+                lines.forEach(line => {
+                    const linePoints = line.getLatLngs();
+                    for (let i = 0; i < linePoints.length - 1; i++) {
+                        const intersection = findIntersection(
+                            start, end,
+                            linePoints[i], linePoints[i + 1]
+                        );
+                        if (intersection) {
+                            // Add intersection marker
+                            const marker = L.marker(intersection, {
+                                icon: L.divIcon({
+                                    className: 'intersection-marker',
+                                    html: '<i class="fas fa-crosshairs"></i>',
+                                    iconSize: [24, 24]
+                                })
+                            }).addTo(map);
+
+                            marker.bindPopup(`
+                                <div class="intersection-popup">
+                                    <strong>Intersection Point</strong><br>
+                                    Latitude: ${intersection.lat.toFixed(6)}<br>
+                                    Longitude: ${intersection.lng.toFixed(6)}
+                                </div>
+                            `);
+
+                            intersectionMarkers.push(marker);
+                        }
+                    }
+                });
+            }
+
+            // Calculate intersection point of two lines
+            function findIntersection(p1, p2, p3, p4) {
+                const x1 = p1[0], y1 = p1[1];
+                const x2 = p2[0], y2 = p2[1];
+                const x3 = p3.lat, y3 = p3.lng;
+                const x4 = p4.lat, y4 = p4.lng;
+
+                const denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+                if (denominator === 0) return null;
+
+                const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denominator;
+                const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denominator;
+
+                if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+                    return L.latLng(
+                        x1 + t * (x2 - x1),
+                        y1 + t * (y2 - y1)
+                    );
+                }
+                return null;
+            }
+
+            // Add click handler
+            map.on('click', handleClick);
+
+            // Add cancel button
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'sub-btn';
+            cancelBtn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+            cancelBtn.onclick = function() {
+                map.off('click', handleClick);
+                if (tempLine) map.removeLayer(tempLine);
+                points = [];
+                isDrawing = false;
+                intersectionBtn.innerHTML = originalText;
+                intersectionBtn.disabled = false;
+                this.remove();
+            };
+            document.querySelector('#advancedTools-dropdown .dropdown-section').appendChild(cancelBtn);
+        };
+
+        // Buffer Analysis
+        window.performBufferAnalysis = function() {
+            let bufferRadius = 1000; // Default 1km
+            let bufferLayer = null;
+            let centerPoint = null;
+
+            const bufferBtn = document.querySelector('[onclick="performBufferAnalysis()"]');
+            const originalText = bufferBtn.innerHTML;
+            bufferBtn.innerHTML = '<i class="fas fa-mouse-pointer"></i> Click center point...';
+            bufferBtn.disabled = true;
+
+            // Create radius input
+            const radiusInput = document.createElement('div');
+            radiusInput.className = 'buffer-input';
+            radiusInput.innerHTML = `
+                <input type="number" value="1000" min="100" max="10000" step="100" 
+                       onchange="updateBufferRadius(this.value)">
+                <select onchange="updateBufferUnit(this.value)">
+                    <option value="meters">meters</option>
+                    <option value="kilometers">kilometers</option>
+                </select>
+            `;
+            document.querySelector('#advancedTools-dropdown .dropdown-section').appendChild(radiusInput);
+
+            // Handle map click
+            function handleClick(e) {
+                const { lat, lng } = e.latlng;
+                centerPoint = [lat, lng];
+
+                // Remove existing buffer
+                if (bufferLayer) {
+                    map.removeLayer(bufferLayer);
+                }
+
+                // Create buffer circle
+                bufferLayer = L.circle(centerPoint, {
+                    radius: bufferRadius,
+                    color: '#3498db',
+                    fillColor: '#3498db',
+                    fillOpacity: 0.2,
+                    weight: 2
+                }).addTo(map);
+
+                // Add popup
+                bufferLayer.bindPopup(`
+                    <div class="buffer-popup">
+                        <strong>Buffer Analysis</strong><br>
+                        Center: ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
+                        Radius: ${bufferRadius} meters
+                    </div>
+                `).openPopup();
+            }
+
+            // Update buffer radius
+            window.updateBufferRadius = function(value) {
+                bufferRadius = parseInt(value);
+                if (centerPoint && bufferLayer) {
+                    bufferLayer.setRadius(bufferRadius);
+                }
+            };
+
+            // Update buffer unit
+            window.updateBufferUnit = function(unit) {
+                const input = radiusInput.querySelector('input');
+                const value = parseInt(input.value);
+                if (unit === 'kilometers') {
+                    input.value = value * 1000;
+                    updateBufferRadius(value * 1000);
+                } else {
+                    input.value = value / 1000;
+                    updateBufferRadius(value / 1000);
+                }
+            };
+
+            // Add click handler
+            map.on('click', handleClick);
+
+            // Add cancel button
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'sub-btn';
+            cancelBtn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+            cancelBtn.onclick = function() {
+                map.off('click', handleClick);
+                if (bufferLayer) map.removeLayer(bufferLayer);
+                bufferBtn.innerHTML = originalText;
+                bufferBtn.disabled = false;
+                radiusInput.remove();
+                this.remove();
+            };
+            document.querySelector('#advancedTools-dropdown .dropdown-section').appendChild(cancelBtn);
+        };
+
+        // Show Legend
+        window.toggleLegend = function() {
+            if (legendControl) {
+                map.removeControl(legendControl);
+                legendControl = null;
+            } else {
+                legendControl = L.control({ position: 'bottomright' });
+                
+                legendControl.onAdd = function(map) {
+                    const div = L.DomUtil.create('div', 'info legend');
+                    div.innerHTML = `
+                        <h4>Map Legend</h4>
+                        <div class="legend-content">
+                            <div class="legend-item">
+                                <i class="fas fa-location-arrow"></i> Your Location
+                            </div>
+                            <div class="legend-item">
+                                <i class="fas fa-mountain"></i> Elevation Point
+                            </div>
+                            <div class="legend-item">
+                                <i class="fas fa-crosshairs"></i> Intersection
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: rgba(52, 152, 219, 0.2);"></div>
+                                Buffer Zone
+                            </div>
+                        </div>
+                    `;
+                    return div;
+                };
+                
+                legendControl.addTo(map);
+            }
+        };
+
+        // Add styles for the new features
+        const style = document.createElement('style');
+        style.textContent = `
+            .user-location-marker i,
+            .elevation-marker i,
+            .intersection-marker i {
+                color: #3498db;
+                font-size: 20px;
+                text-shadow: 2px 2px 3px rgba(0,0,0,0.3);
+            }
+
+            .intersection-point i {
+                color: #e74c3c;
+                font-size: 8px;
+            }
+
+            .buffer-input {
+                padding: 8px;
+                display: flex;
+                gap: 8px;
+            }
+
+            .buffer-input input {
+                width: 80px;
+                padding: 4px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+
+            .buffer-input select {
+                padding: 4px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+
+            .legend {
+                background: white;
+                padding: 10px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
+
+            .legend h4 {
+                margin: 0 0 8px 0;
+                font-size: 14px;
+                color: #2c3e50;
+            }
+
+            .legend-content {
+                font-size: 12px;
+            }
+
+            .legend-item {
+                display: flex;
+                align-items: center;
+                margin: 4px 0;
+            }
+
+            .legend-item i {
+                margin-right: 8px;
+                width: 16px;
+                text-align: center;
+            }
+
+            .legend-color {
+                width: 16px;
+                height: 16px;
+                margin-right: 8px;
+                border: 1px solid #3498db;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Define basemaps
+        basemaps = {
+          osm: L.tileLayer(
+            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            {
+              attribution: "© OpenStreetMap contributors",
+              zIndex: 1,
+            }
+          ),
+          satellite: L.tileLayer(
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            {
+              attribution: "© Esri",
+              zIndex: 1,
+            }
+          ),
+          terrain: L.tileLayer(
+            "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+            {
+              attribution: "© OpenTopoMap",
+              zIndex: 1,
+            }
+          ),
+          dark: L.tileLayer(
+            "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+            {
+              attribution: "© CARTO",
+              zIndex: 1,
+            }
+          ),
+          esri_topo: L.tileLayer(
+            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+            {
+              attribution: "© Esri",
+              zIndex: 1,
+            }
+          ),
+          esri_ocean: L.tileLayer(
+            "https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}",
+            {
+              attribution: "© Esri",
+              zIndex: 1,
+            }
+          ),
+          google_hybrid: L.tileLayer(
+            "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+            {
+              attribution: "© Google",
+              zIndex: 1,
+            }
+          ),
+        };
+
+        // Add default basemap
+        currentBasemap = basemaps.osm;
+        currentBasemap.addTo(map);
+
+        // Initialize WMS layers
+        initializeWMSLayers();
+
+        // Setup draw controls
+        setupDrawControls();
+
+        // Setup event listeners
+        setupEventListeners();
+
+        // Initialize geocoder
+        initializeGeocoder();
+
+        // Update layer list
+        updateLayerList();
+      }
+
+      // Setup drawing controls
+      function setupDrawControls() {
+        const drawPluginOptions = {
+          position: "topleft",
+          draw: {
+            polygon: {
+              allowIntersection: false,
+              drawError: {
+                color: "#e1e100",
+                message: "<strong>Oh snap!<strong> you can't draw that!",
+              },
+              shapeOptions: {
+                color: "#97009c",
+              },
+            },
+            polyline: {
+              shapeOptions: {
+                color: "#f357a1",
+                weight: 10,
+              },
+            },
+            rect: {
+              shapeOptions: {
+                clickable: false,
+              },
+            },
+            circle: false,
+            marker: true,
+            circlemarker: false,
+          },
+          edit: {
+            featureGroup: drawnItems,
+            remove: true,
+          },
+        };
+
+        drawControl = new L.Control.Draw(drawPluginOptions);
+        map.addControl(drawControl);
+      }
+
+      // Setup event listeners
+      function setupEventListeners() {
+        // Mouse move event for coordinates
+        map.on("mousemove", function (e) {
+          const coords = document.getElementById("coordinates");
+          coords.innerHTML = `Lat: ${e.latlng.lat.toFixed(
+            6
+          )}, Lng: ${e.latlng.lng.toFixed(6)}`;
+        });
+
+        // Draw events
+        map.on(L.Draw.Event.CREATED, function (e) {
+          const layer = e.layer;
+
+          if (isMeasuring && measurementType) {
+            // This is a measurement
+            measurementLayer.addLayer(layer);
+
+            let measurement;
+            let popupContent;
+
+            if (measurementType === "distance" && layer instanceof L.Polyline) {
+              const latlngs = layer.getLatLngs();
+              measurement = calculateDistance(latlngs);
+              popupContent = `<b>Distance:</b><br>${formatMeasurement(
+                measurement,
+                "distance"
+              )}`;
+            } else if (
+              measurementType === "area" &&
+              layer instanceof L.Polygon
+            ) {
+              const latlngs = layer.getLatLngs()[0];
+              measurement = calculateArea(latlngs);
+              popupContent = `<b>Area:</b><br>${formatMeasurement(
+                measurement,
+                "area"
+              )}`;
+            }
+
+            if (popupContent) {
+              layer.bindPopup(popupContent).openPopup();
+            }
+
+            // Reset measurement state
+            isMeasuring = false;
+            measurementType = null;
+
+            // Remove active state from measurement buttons
+            document
+              .querySelectorAll("#measurements-content .sub-btn")
+              .forEach((btn) => {
+                btn.classList.remove("active");
+              });
+          } else {
+            // Regular drawing
+            drawnItems.addLayer(layer);
+          }
+
+          updateLayerList();
+        });
+
+        map.on(L.Draw.Event.EDITED, function (e) {
+          updateLayerList();
+        });
+
+        map.on(L.Draw.Event.DELETED, function (e) {
+          updateLayerList();
+        });
+
+        // WMS layer error handling
+        map.on("tileerror", function (e) {
+          console.warn("WMS Layer loading error:", e);
+        });
+      }
+
+      // Initialize geocoder
+      function initializeGeocoder() {
+        const geocoder = L.Control.geocoder({
+          defaultMarkGeocode: false,
+        }).on("markgeocode", function (e) {
+          const bbox = e.geocode.bbox;
+          const poly = L.polygon([
+            bbox.getSouthEast(),
+            bbox.getNorthEast(),
+            bbox.getNorthWest(),
+            bbox.getSouthWest(),
+          ]).addTo(map);
+          map.fitBounds(poly.getBounds());
+        });
+      }
+
+      // Toggle section function
+      function toggleDropdown(dropdownId, event) {
+        event.stopPropagation();
+        const dropdown = document.getElementById(dropdownId + "-dropdown");
+        const allDropdowns = document.querySelectorAll(".dropdown-content");
+        
+        allDropdowns.forEach((d) => {
+          if (d !== dropdown) {
+            d.classList.remove("show");
+          }
+        });
+        
+        dropdown.classList.toggle("show");
+      }
+
+      // Initialize WMS layers
+      function initializeWMSLayers() {
+        initializeScaleDependentLayers();
+
+        const layerSelector = document.getElementById("layerSelector");
+
+        layerSelector.addEventListener("change", function () {
+          const layerName = this.value;
+          if (currentWMSLayer) {
+            map.removeLayer(currentWMSLayer);
+            currentWMSLayer = null;
+          }
+
+          // Add the correct WMS layer based on selection
+          let wmsOptions = {
+            url: "",
+            layer: "",
+            bounds: [
+              [15.5, 72.5],
+              [35.5, 97.5],
+            ], // Default bounds (India)
+          };
+
+          switch (layerName) {
+            case "district_boundary":
+              wmsOptions.url =
+                "http://localhost:8085/geoserver/allshapefiles/wms";
+              wmsOptions.layer = "allshapefiles:District Boundary";
+              break;
+            case "division_boundary":
+              wmsOptions.url =
+                "http://localhost:8085/geoserver/allshapefiles/wms";
+              wmsOptions.layer = "allshapefiles:Division Boundary";
+              break;
+            case "hq_tal_dist_div":
+              wmsOptions.url =
+                "http://localhost:8085/geoserver/allshapefiles/wms";
+              wmsOptions.layer = "allshapefiles:HQ_TAL_DIST_DIV";
+              wmsOptions.bounds = [
+                [15.8, 73.0],
+                [34.5, 97.0],
+              ];
+              break;
+            case "india_boundary":
+              wmsOptions.url =
+                "http://localhost:8085/geoserver/allshapefiles/wms";
+              wmsOptions.layer = "allshapefiles:India Boundary";
+              wmsOptions.bounds = [
+                [7.0, 68.0],
+                [37.0, 97.0],
+              ];
+              break;
+            case "maharashtra_boundary":
+              wmsOptions.url =
+                "http://localhost:8085/geoserver/allshapefiles/wms";
+              wmsOptions.layer = "allshapefiles:Maharashtra Boundary";
+              wmsOptions.bounds = [
+                [15.5, 72.5],
+                [21.0, 80.5],
+              ];
+              break;
+            case "taluka_boundary":
+              wmsOptions.url =
+                "http://localhost:8085/geoserver/allshapefiles/wms";
+              wmsOptions.layer = "allshapefiles:Taluka Boundary";
+              break;
+            case "village_boundary":
+              wmsOptions.url =
+                "http://localhost:8085/geoserver/allshapefiles/wms";
+              wmsOptions.layer = "allshapefiles:Village Boundary";
+              break;
+            default:
+              wmsOptions = null;
+          }
+
+          if (wmsOptions && wmsOptions.layer) {
+            currentWMSLayer = L.tileLayer
+              .wms(wmsOptions.url, {
+                layers: wmsOptions.layer,
+                format: "image/png",
+                transparent: true,
+                version: "1.1.0",
+                attribution: "GeoServer Web Map Service",
+                crs: L.CRS.EPSG3857,
+                maxZoom: 20,
+                minZoom: 0,
+                opacity: 0.8,
+                zIndex: 1000, // Add this line
+              })
+              .addTo(map);
+
+            // Store in overlay layers for layer management
+            overlayLayers[layerName] = currentWMSLayer;
+
+            // Fit bounds to the layer
+            map.fitBounds(wmsOptions.bounds);
+
+            // Update layer list and legend
+            updateLayerList();
+            updateLegend(layerName);
+          }
+        });
+      }
+
+      ///////////////////////////////////////////////////////NAVBAR EXPNASION///////////////////////////////
+      function toggleNavbarExpansion() {
+        const navbar = document.getElementById("navbar");
+        const navbarContent = document.getElementById("navbarContent");
+        const toggle = document.getElementById("navbarToggle");
+        const toggleIcon = toggle.querySelector("i");
+
+        if (!navbar || !navbarContent || !toggle) return;
+
+        navbar.classList.toggle("expanded");
+        navbarContent.classList.toggle("expanded");
+        toggle.classList.toggle("active");
+        toggleIcon.classList.toggle("fa-chevron-down");
+        toggleIcon.classList.toggle("fa-chevron-up");
+      }
+
+      // Initialize navbar
+      document.addEventListener("DOMContentLoaded", function() {
+        const toggle = document.getElementById("navbarToggle");
+        if (toggle) {
+          toggle.addEventListener("click", toggleNavbarExpansion);
+        }
+      });
+
+      function positionDropdowns() {
+        const buttons = document.querySelectorAll(".feature-btn");
+        const dropdowns = document.querySelectorAll(".dropdown-content");
+
+        buttons.forEach((button, index) => {
+          const dropdown = dropdowns[index];
+          if (!dropdown) return;
+
+          const rect = button.getBoundingClientRect();
+
+          dropdown.style.position = "fixed";
+          dropdown.style.top = `${rect.bottom + window.scrollY}px`;
+          dropdown.style.left = `${rect.left + window.scrollX}px`;
+          dropdown.style.width = `${Math.max(rect.width, 200)}px`;
+          dropdown.style.zIndex = "9999";
+        });
+      }
+
+      function positionDropdownFixed(dropdown, button) {
+        const buttonRect = button.getBoundingClientRect();
+        const dropdownHeight = dropdown.offsetHeight;
+        const viewportHeight = window.innerHeight;
+
+        // Calculate position
+        let top = buttonRect.bottom + 5; // 5px gap below button
+
+        // Check if dropdown would go below viewport
+        if (top + dropdownHeight > viewportHeight) {
+          top = buttonRect.top - dropdownHeight - 5; // Position above button
+        }
+
+        // Set fixed positioning
+        dropdown.style.position = "fixed";
+        dropdown.style.top = top + "px";
+        dropdown.style.left = buttonRect.left + "px";
+        dropdown.style.width = Math.max(200, buttonRect.width) + "px"; // Minimum width of 200px
+        dropdown.style.zIndex = "9999";
+      }
+
+      // Reset dropdown positioning when navbar collapses
+      function resetDropdownPositioning() {
+        document.querySelectorAll(".dropdown-content").forEach((dropdown) => {
+          dropdown.style.position = "";
+          dropdown.style.top = "";
+          dropdown.style.left = "";
+          dropdown.style.width = "";
+          dropdown.style.zIndex = "";
+        });
+      }
+
+      // Auto-detect if overflow toggle is needed
+      function checkNavbarOverflow() {
+        const navbarContent = document.getElementById("navbarContent");
+        const overflowToggle = document.getElementById("overflowToggle");
+
+        if (!navbarContent || !overflowToggle) return;
+
+        let totalWidth = 0;
+        const groups = navbarContent.querySelectorAll(".navbar-group");
+
+        groups.forEach((group) => {
+          totalWidth += group.offsetWidth + 15; // Include gap
+        });
+
+        const availableWidth = navbarContent.offsetWidth;
+
+        if (totalWidth > availableWidth) {
+          overflowToggle.classList.remove("hidden");
+        } else {
+          overflowToggle.classList.add("hidden");
+          if (isNavbarExpanded) toggleNavbarExpansion(); // Collapse if not needed
+        }
+      }
+      
+      function initializeNavbar() {
+        const overflowToggle = document.getElementById("overflowToggle");
+        const navbar = document.getElementById("navbar");
+
+        // Check if required elements exist
+        if (!overflowToggle) {
+          console.warn("Element with ID 'overflowToggle' not found");
+          return;
+        }
+
+        if (!navbar) {
+          console.warn("Element with ID 'navbar' not found");
+          return;
+        }
+
+        console.log("Navbar elements found successfully");
+
+        // Attach click event to overflow toggle button
+        overflowToggle.addEventListener("click", toggleNavbarExpansion);
+
+        // Check overflow on window resize
+        window.addEventListener("resize", checkNavbarOverflow);
+
+        // Initial check with delay to ensure DOM is ready
+        setTimeout(checkNavbarOverflow, 500);
+
+        // Close expanded navbar when clicking outside
+        document.addEventListener("click", function (event) {
+          if (isNavbarExpanded && !navbar.contains(event.target)) {
+            toggleNavbarExpansion();
+          }
+        });
+
+        // Keyboard accessibility for overflow toggle
+        overflowToggle.addEventListener("keydown", function (event) {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleNavbarExpansion();
+          }
+        });
+      }
+
+      // Close dropdowns when clicking outside
+      document.addEventListener("click", function (event) {
+        const dropdowns = document.querySelectorAll(".dropdown-content");
+        dropdowns.forEach((dropdown) => {
+          if (!dropdown.contains(event.target) && !event.target.closest(".feature-btn")) {
+            dropdown.classList.remove("show");
+          }
+        });
+      });
+
+      // Initialize everything when DOM is loaded
+      document.addEventListener("DOMContentLoaded", function () {
+        console.log("DOM loaded, initializing navbar...");
+        initializeNavbar();
+      });
+      /////////////////////////////////////////////////////////NAV END//////////////////////////////////////
+
+      /////////////////////////////////////////////////NEW SECTION///////////////////////////////////////////////////
+      function initializeScaleDependentLayers() {
+        // Create a layer group with all administrative boundaries
+        const administrativeBoundaries = L.tileLayer.wms(
+          "http://localhost:8085/geoserver/allshapefiles/wms",
+          {
+            layers:
+              "allshapefiles:India_Boundary,allshapefiles:Maharashtra_Boundary,allshapefiles:Division_Boundary,allshapefiles:District_Boundary,allshapefiles:Taluka_Boundary,allshapefiles:Village_Boundary",
+            format: "image/png",
+            transparent: true,
+            version: "1.1.0",
+            attribution: "GeoServer Web Map Service",
+            crs: L.CRS.EPSG3857,
+            maxZoom: 20,
+            minZoom: 0,
+            opacity: 0.8,
+            zIndex: 1000,
+          }
+        );
+        administrativeBoundaries.addTo(map);
+
+        // Store in overlay layers
+        overlayLayers["Administrative Boundaries"] = administrativeBoundaries;
+      }
+
+      // Alternative: Individual layers with client-side zoom control
+      function initializeZoomDependentLayers() {
+        const zoomLayers = {
+          India_Boundary: { minZoom: 0, maxZoom: 7 },
+          Maharashtra_Boundary: { minZoom: 6, maxZoom: 10 },
+          Division_Boundary: { minZoom: 9, maxZoom: 12 },
+          District_Boundary: { minZoom: 11, maxZoom: 14 },
+          Taluka_Boundary: { minZoom: 13, maxZoom: 16 },
+          Village_Boundary: { minZoom: 15, maxZoom: 20 },
+        };
+
+        Object.keys(zoomLayers).forEach((layerName) => {
+          const config = zoomLayers[layerName];
+          const layer = L.tileLayer.wms(
+            "http://localhost:8085/geoserver/allshapefiles/wms",
+            {
+              layers: `allshapefiles:${layerName}`,
+              format: "image/png",
+              transparent: true,
+              version: "1.1.0",
+              attribution: "GeoServer Web Map Service",
+              crs: L.CRS.EPSG3857,
+              maxZoom: config.maxZoom,
+              minZoom: config.minZoom,
+              opacity: 0.8,
+              zIndex: 1000,
+            }
+          );
+
+          // Add to map
+          layer.addTo(map);
+          overlayLayers[layerName] = layer;
+        });
+
+        // Listen to zoom events to show/hide layers
+        map.on("zoomend", function () {
+          const currentZoom = map.getZoom();
+
+          Object.keys(zoomLayers).forEach((layerName) => {
+            const config = zoomLayers[layerName];
+            const layer = overlayLayers[layerName];
+
+            if (
+              currentZoom >= config.minZoom &&
+              currentZoom <= config.maxZoom
+            ) {
+              if (!map.hasLayer(layer)) {
+                map.addLayer(layer);
+              }
+            } else {
+              if (map.hasLayer(layer)) {
+                map.removeLayer(layer);
+              }
+            }
+          });
+        });
+      }
+
+      ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+      // Update legend
+      function updateLegend(layerName) {
+        const legendContainer = document.getElementById("legendContainer");
+        const legendContent = document.getElementById("legendContent");
+
+        if (!layerName) {
+          legendContainer.style.display = "none";
+          return;
+        }
+
+        legendContainer.style.display = "block";
+
+        // Create legend based on layer type
+        const legendInfo = {
+          india_boundary: {
+            title: "India Administrative Boundary",
+            color: "#ff6b6b",
+            description: "International boundary of India",
+          },
+          maharashtra_boundary: {
+            title: "Maharashtra State Boundary",
+            color: "#4ecdc4",
+            description: "State boundary of Maharashtra",
+          },
+          district_boundary: {
+            title: "District Boundaries",
+            color: "#45b7d1",
+            description: "Administrative district boundaries",
+          },
+          division_boundary: {
+            title: "Division Boundaries",
+            color: "#f9ca24",
+            description: "Administrative division boundaries",
+          },
+          taluka_boundary: {
+            title: "Taluka Boundaries",
+            color: "#f0932b",
+            description: "Sub-district administrative boundaries",
+          },
+          village_boundary: {
+            title: "Village Boundaries",
+            color: "#eb4d4b",
+            description: "Village-level administrative boundaries",
+          },
+          hq_tal_dist_div: {
+            title: "Administrative Headquarters",
+            color: "#6c5ce7",
+            description: "Taluka, District and Division headquarters",
+          },
+        };
+
+        const info = legendInfo[layerName];
+        if (info) {
+          legendContent.innerHTML = `
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+              <div style="width: 20px; height: 3px; background-color: ${info.color}; margin-right: 10px; border-radius: 2px;"></div>
+              <span style="font-size: 12px; font-weight: bold;">${info.title}</span>
+            </div>
+            <p style="font-size: 11px; color: #666; margin: 0;">${info.description}</p>
+          `;
+        }
+      }
+      function changeBasemap(basemapType) {
+        // Remove current basemap
+        // Remove current basemap
+        map.removeLayer(currentBasemap);
+
+        // Add new basemap
+        map.addLayer(basemaps[basemapType]);
+        currentBasemap = basemaps[basemapType];
+
+        // Update UI
+        document.querySelectorAll(".basemap-item").forEach((item) => {
+          item.classList.remove("active");
+        });
+        document
+          .querySelector(`[data-basemap="${basemapType}"]`)
+          .classList.add("active");
+      }
+
+      // Select draw tool function
+      function selectDrawTool(tool) {
+        // Clear any active drawing states
+        if (currentDrawTool) {
+          document.querySelectorAll(".sub-btn").forEach((btn) => {
+            btn.classList.remove("active");
+          });
+        }
+
+        // Set active tool
+        currentDrawTool = tool;
+        event.currentTarget.classList.add("active");
+
+        // Enable appropriate drawing mode
+        switch (tool) {
+          case "point":
+            new L.Draw.Marker(map, drawControl.options.draw.marker).enable();
+            break;
+          case "polyline":
+            new L.Draw.Polyline(
+              map,
+              drawControl.options.draw.polyline
+            ).enable();
+            break;
+          case "polygon":
+            new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable();
+            break;
+          case "rectangle":
+            new L.Draw.Rectangle(map, drawControl.options.draw.rect).enable();
+            break;
+          case "circle":
+            new L.Draw.Circle(map, drawControl.options.draw.circle).enable();
+            break;
+          case "edit":
+            new L.EditToolbar.Edit(map, {
+              featureGroup: drawnItems,
+            }).enable();
+            break;
+          case "delete":
+            new L.EditToolbar.Delete(map, {
+              featureGroup: drawnItems,
+            }).enable();
+            break;
+        }
+      }
+
+      // Clear all drawings
+      function clearAllDrawings() {
+        drawnItems.clearLayers();
+        updateLayerList();
+      }
+
+      // Start measurement
+      function startMeasurement(type) {
+        // Clear any previous measurement state
+        clearMeasurements();
+        isMeasuring = true;
+        measurementType = type;
+
+        // Remove active state from other buttons
+        document
+          .querySelectorAll("#measurements-dropdown .sub-btn")
+          .forEach((btn) => {
+            btn.classList.remove("active");
+          });
+
+        // Find and set active state for current button
+        const activeButton = document.querySelector(
+          `#measurements-dropdown .sub-btn[onclick="startMeasurement('${type}')"]`
+        );
+        if (activeButton) {
+          activeButton.classList.add("active");
+        }
+
+        if (type === "distance") {
+          new L.Draw.Polyline(map, {
+            shapeOptions: {
+              color: "#ff0000",
+              weight: 3,
+            },
+          }).enable();
+        } else if (type === "area") {
+          new L.Draw.Polygon(map, {
+            shapeOptions: {
+              color: "#ff0000",
+              weight: 3,
+              fillOpacity: 0.2,
+            },
+          }).enable();
+        }
+      }
+
+      function calculateArea(latlngs) {
+        let area = 0;
+        if (latlngs.length > 2) {
+          for (let i = 0; i < latlngs.length; i++) {
+            let j = (i + 1) % latlngs.length;
+            area += latlngs[i].lat * latlngs[j].lng;
+            area -= latlngs[j].lat * latlngs[i].lng;
+          }
+          area = Math.abs(area) / 2;
+        }
+        return area * 111319.9 * 111319.9;
+      }
+
+      function calculateDistance(latlngs) {
+        let totalDistance = 0;
+        for (let i = 0; i < latlngs.length - 1; i++) {
+          totalDistance += map.distance(latlngs[i], latlngs[i + 1]);
+        }
+        return totalDistance;
+      }
+
+      function formatMeasurement(value, type) {
+        if (type === "distance") {
+          if (value >= 1000) {
+            return (value / 1000).toFixed(2) + " km";
+          } else {
+            return value.toFixed(2) + " m";
+          }
+        } else if (type === "area") {
+          if (value >= 1000000) {
+            return (value / 1000000).toFixed(2) + " km²";
+          } else if (value >= 10000) {
+            return (value / 10000).toFixed(2) + " hectares";
+          } else {
+            return value.toFixed(2) + " m²";
+          }
+        }
+        return value.toString();
+      }
+
+      // Clear measurements
+      function clearMeasurements() {
+        measurementLayer.clearLayers();
+        isMeasuring = false;
+        measurementType = null;
+
+        // Remove active state from all measurement buttons
+        document
+          .querySelectorAll("#measurements-dropdown .sub-btn")
+          .forEach((btn) => {
+            btn.classList.remove("active");
+          });
+      }
+
+      // Handle file upload
+      function handleFileUpload(event) {
+        const files = event.target.files;
+        console.log("Files selected:", files.length);
+
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const fileName = file.name.toLowerCase();
+          console.log("Processing file:", fileName, "Size:", file.size);
+
+          if (fileName.endsWith(".zip")) {
+            // Handle shapefile (ZIP)
+            handleShapefileUpload(file);
+          } else if (
+            fileName.endsWith(".geojson") ||
+            fileName.endsWith(".json")
+          ) {
+            // Handle GeoJSON
+            handleGeoJSONUpload(file);
+          } else if (fileName.endsWith(".kml")) {
+            alert(
+              "KML support coming soon. Please convert to GeoJSON for now."
+            );
+          } else if (fileName.endsWith(".gpx")) {
+            alert(
+              "GPX support coming soon. Please convert to GeoJSON for now."
+            );
+          } else {
+            alert("Unsupported file format: " + file.name);
+          }
+        }
+
+        // Clear the input so the same file can be uploaded again
+        event.target.value = "";
+      }
+
+      function handleGeoJSONUpload(file) {
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          try {
+            const geojsonData = JSON.parse(e.target.result);
+            const layer = L.geoJSON(geojsonData, {
+              style: {
+                color: "#3388ff",
+                weight: 2,
+                opacity: 0.8,
+                fillOpacity: 0.3,
+              },
+              onEachFeature: function (feature, layer) {
+                if (feature.properties) {
+                  let popupContent = "<div>";
+                  Object.keys(feature.properties).forEach((key) => {
+                    popupContent += `<b>${key}:</b> ${feature.properties[key]}<br>`;
+                  });
+                  popupContent += "</div>";
+                  layer.bindPopup(popupContent);
+                }
+              },
+            }).addTo(map);
+
+            overlayLayers[file.name] = layer;
+            map.fitBounds(layer.getBounds());
+            updateLayerList();
+
+            alert(`Successfully loaded: ${file.name}`);
+          } catch (error) {
+            alert("Error loading GeoJSON file: " + file.name);
+            console.error("GeoJSON load error:", error);
+          }
+        };
+
+        reader.readAsText(file);
+      }
+
+      // 8. Add new function to handle shapefile uploads:
+      function handleShapefileUpload(file) {
+        console.log("Loading shapefile:", file.name);
+
+        // Check if shp library is loaded
+        if (typeof shp === "undefined") {
+          console.error("Shapefile library not loaded");
+          alert(
+            "Shapefile library not loaded. Please refresh the page and try again."
+          );
+          return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          console.log("File read complete, parsing...");
+          try {
+            // Use shp library to parse the shapefile
+            shp(e.target.result)
+              .then(function (geojson) {
+                console.log("Shapefile parsed successfully:", geojson);
+
+                // Check if geojson has features
+                if (
+                  !geojson ||
+                  !geojson.features ||
+                  geojson.features.length === 0
+                ) {
+                  alert("No features found in shapefile: " + file.name);
+                  return;
+                }
+
+                // Enhanced debugging for coordinate system
+                console.log("Number of features:", geojson.features.length);
+                console.log(
+                  "First feature geometry type:",
+                  geojson.features[0].geometry.type
+                );
+                console.log(
+                  "First feature coordinates:",
+                  geojson.features[0].geometry.coordinates
+                );
+
+                // Check the actual coordinate values for CRS detection
+                let coords = geojson.features[0].geometry.coordinates;
+                let sampleLng, sampleLat;
+
+                if (geojson.features[0].geometry.type === "Point") {
+                  sampleLng = coords[0];
+                  sampleLat = coords[1];
+                } else if (geojson.features[0].geometry.type === "Polygon") {
+                  console.log("First polygon ring:", coords[0]);
+                  console.log("First coordinate pair:", coords[0][0]);
+                  sampleLng = coords[0][0][0];
+                  sampleLat = coords[0][0][1];
+                } else if (
+                  geojson.features[0].geometry.type === "MultiPolygon"
+                ) {
+                  console.log("First multipolygon:", coords[0][0]);
+                  console.log("First coordinate pair:", coords[0][0][0]);
+                  sampleLng = coords[0][0][0][0];
+                  sampleLat = coords[0][0][0][1];
+                } else if (geojson.features[0].geometry.type === "LineString") {
+                  sampleLng = coords[0][0];
+                  sampleLat = coords[0][1];
+                } else if (
+                  geojson.features[0].geometry.type === "MultiLineString"
+                ) {
+                  sampleLng = coords[0][0][0];
+                  sampleLat = coords[0][0][1];
+                }
+
+                console.log(
+                  "Sample coordinates - Lng:",
+                  sampleLng,
+                  "Lat:",
+                  sampleLat
+                );
+
+                // Check if coordinates are outside normal lat/lng ranges
+                if (Math.abs(sampleLat) > 90 || Math.abs(sampleLng) > 180) {
+                  console.log("Attempting to reproject coordinates...");
+
+                  // Check if proj4 library is available
+                  if (typeof proj4 === "undefined") {
+                    console.warn(
+                      "Coordinates appear to be in a projected coordinate system!"
+                    );
+                    console.warn(
+                      "Latitude should be between -90 and 90, Longitude between -180 and 180"
+                    );
+                    console.warn(
+                      "Current values - Lat:",
+                      sampleLat,
+                      "Lng:",
+                      sampleLng
+                    );
+                    alert(
+                      "Warning: The shapefile appears to use a projected coordinate system (like UTM). It needs to be in WGS84 (EPSG:4326) to display properly on the map. Please reproject your shapefile to WGS84."
+                    );
+                    return;
+                  }
+
+                  // Define source projection as EPSG:3395 (World Mercator)
+                  let sourceProj =
+                    "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs";
+                  let targetProj = "+proj=longlat +datum=WGS84 +no_defs";
+
+                  try {
+                    // Reproject all coordinates in the GeoJSON
+                    geojson.features.forEach((feature) => {
+                      if (feature.geometry.type === "Point") {
+                        feature.geometry.coordinates = proj4(
+                          sourceProj,
+                          targetProj,
+                          feature.geometry.coordinates
+                        );
+                      } else if (feature.geometry.type === "Polygon") {
+                        feature.geometry.coordinates =
+                          feature.geometry.coordinates.map((ring) =>
+                            ring.map((coord) =>
+                              proj4(sourceProj, targetProj, [
+                                coord[0],
+                                coord[1],
+                              ])
+                            )
+                          );
+                      } else if (feature.geometry.type === "MultiPolygon") {
+                        feature.geometry.coordinates =
+                          feature.geometry.coordinates.map((polygon) =>
+                            polygon.map((ring) =>
+                              ring.map((coord) =>
+                                proj4(sourceProj, targetProj, [
+                                  coord[0],
+                                  coord[1],
+                                ])
+                              )
+                            )
+                          );
+                      } else if (feature.geometry.type === "LineString") {
+                        feature.geometry.coordinates =
+                          feature.geometry.coordinates.map((coord) =>
+                            proj4(sourceProj, targetProj, [coord[0], coord[1]])
+                          );
+                      } else if (feature.geometry.type === "MultiLineString") {
+                        feature.geometry.coordinates =
+                          feature.geometry.coordinates.map((line) =>
+                            line.map((coord) =>
+                              proj4(sourceProj, targetProj, [
+                                coord[0],
+                                coord[1],
+                              ])
+                            )
+                          );
+                      }
+                    });
+
+                    // Recalculate sample coordinates after reprojection
+                    coords = geojson.features[0].geometry.coordinates;
+                    if (geojson.features[0].geometry.type === "Point") {
+                      sampleLng = coords[0];
+                      sampleLat = coords[1];
+                    } else if (
+                      geojson.features[0].geometry.type === "Polygon"
+                    ) {
+                      sampleLng = coords[0][0][0];
+                      sampleLat = coords[0][0][1];
+                    } else if (
+                      geojson.features[0].geometry.type === "MultiPolygon"
+                    ) {
+                      sampleLng = coords[0][0][0][0];
+                      sampleLat = coords[0][0][0][1];
+                    } else if (
+                      geojson.features[0].geometry.type === "LineString"
+                    ) {
+                      sampleLng = coords[0][0];
+                      sampleLat = coords[0][1];
+                    } else if (
+                      geojson.features[0].geometry.type === "MultiLineString"
+                    ) {
+                      sampleLng = coords[0][0][0];
+                      sampleLat = coords[0][0][1];
+                    }
+
+                    console.log("Reprojection completed");
+                    console.log(
+                      "New sample coordinates - Lng:",
+                      sampleLng,
+                      "Lat:",
+                      sampleLat
+                    );
+                  } catch (projError) {
+                    console.error("Projection failed:", projError);
+                    alert(
+                      "Could not automatically reproject the shapefile. Please convert to WGS84 manually."
+                    );
+                    return;
+                  }
+                }
+
+                // Create the layer with boundary-only styling
+                const layer = L.geoJSON(geojson, {
+                  style: {
+                    color: "#ff0000", // Red boundary
+                    weight: 2, // Moderate line thickness
+                    opacity: 1,
+                    fillOpacity: 0, // No fill - boundary only
+                  },
+                  onEachFeature: function (feature, layer) {
+                    // Add click event for debugging
+                    layer.on("click", function (e) {
+                      console.log("Feature clicked!", feature.properties);
+                      console.log("Click coordinates:", e.latlng);
+                    });
+
+                    if (feature.properties) {
+                      let popupContent =
+                        '<div style="max-height: 200px; overflow-y: auto;">';
+                      Object.keys(feature.properties).forEach((key) => {
+                        if (
+                          feature.properties[key] !== null &&
+                          feature.properties[key] !== undefined
+                        ) {
+                          popupContent += `<b>${key}:</b> ${feature.properties[key]}<br>`;
+                        }
+                      });
+                      popupContent += "</div>";
+                      layer.bindPopup(popupContent);
+                    }
+                  },
+                });
+
+                // Add to map with debugging
+                console.log("Adding layer to map...");
+                layer.addTo(map);
+                console.log(
+                  "Layer added. Layer count on map:",
+                  Object.keys(map._layers).length
+                );
+
+                overlayLayers[file.name] = layer;
+
+                // Enhanced bounds fitting with more debugging
+                try {
+                  const bounds = layer.getBounds();
+                  console.log("Layer bounds:", bounds);
+                  console.log(
+                    "Bounds details - SW:",
+                    bounds.getSouthWest(),
+                    "NE:",
+                    bounds.getNorthEast()
+                  );
+                  console.log("Current map bounds:", map.getBounds());
+                  console.log("Current map center:", map.getCenter());
+                  console.log("Current map zoom:", map.getZoom());
+
+                  if (bounds && bounds.isValid()) {
+                    console.log("Fitting map to bounds...");
+                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 18 });
+
+                    // Log after fitting
+                    setTimeout(() => {
+                      console.log(
+                        "After fitBounds - Center:",
+                        map.getCenter(),
+                        "Zoom:",
+                        map.getZoom()
+                      );
+                    }, 100);
+                  } else {
+                    console.warn(
+                      "Invalid bounds, trying manual center calculation"
+                    );
+
+                    // Manual center calculation
+                    if (
+                      sampleLat &&
+                      sampleLng &&
+                      Math.abs(sampleLat) <= 90 &&
+                      Math.abs(sampleLng) <= 180
+                    ) {
+                      console.log("Setting view to sample coordinates:", [
+                        sampleLat,
+                        sampleLng,
+                      ]);
+                      map.setView([sampleLat, sampleLng], 12);
+                    } else {
+                      console.error(
+                        "Cannot determine valid center coordinates"
+                      );
+                    }
+                  }
+                } catch (boundsError) {
+                  console.error("Error fitting bounds:", boundsError);
+
+                  // Fallback: try to center on sample coordinates
+                  if (
+                    sampleLat &&
+                    sampleLng &&
+                    Math.abs(sampleLat) <= 90 &&
+                    Math.abs(sampleLng) <= 180
+                  ) {
+                    console.log("Fallback: centering on sample coordinates");
+                    map.setView([sampleLat, sampleLng], 12);
+                  }
+                }
+
+                // Force map refresh
+                setTimeout(() => {
+                  map.invalidateSize();
+                  console.log("Map size invalidated and refreshed");
+                }, 200);
+
+                updateLayerList();
+                alert(
+                  `Successfully loaded shapefile: ${file.name}\nFeatures: ${
+                    geojson.features.length
+                  }\nCoordinates: ${sampleLat.toFixed(6)}, ${sampleLng.toFixed(
+                    6
+                  )}`
+                );
+              })
+              .catch(function (error) {
+                console.error("Shapefile parse error:", error);
+                alert(
+                  "Error parsing shapefile: " +
+                    file.name +
+                    "\nMake sure it contains all required files (.shp, .shx, .dbf, .prj)\nError details: " +
+                    error.message
+                );
+              });
+          } catch (error) {
+            console.error("Shapefile load error:", error);
+            alert(
+              "Error loading shapefile: " +
+                file.name +
+                "\nError: " +
+                error.message
+            );
+          }
+        };
+
+        reader.onerror = function (error) {
+          console.error("File read error:", error);
+          alert("Error reading file: " + file.name);
+        };
+
+        reader.readAsArrayBuffer(file);
+      }
+
+      // Perform search
+      function performSearch() {
+        const query = document.getElementById("searchInput").value;
+        if (!query) return;
+
+        // Using Nominatim for geocoding
+        fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            query
+          )}`
+        )
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.length > 0) {
+              const result = data[0];
+              const lat = parseFloat(result.lat);
+              const lon = parseFloat(result.lon);
+
+              map.setView([lat, lon], 13);
+              L.marker([lat, lon])
+                .addTo(map)
+                .bindPopup(result.display_name)
+                .openPopup();
+            } else {
+              alert("No results found for: " + query);
+            }
+          })
+          .catch((error) => {
+            console.error("Search error:", error);
+            alert("Search failed. Please try again.");
+          });
+      }
+
+      // Update layer list
+      function updateLayerList() {
+        const layerList = document.getElementById("layerList");
+        layerList.innerHTML = "";
+
+        // Add drawn items
+        if (drawnItems.getLayers().length > 0) {
+          drawnItems.eachLayer((layer, index) => {
+            const layerItem = createLayerItem(
+              `Drawing ${drawnItems.getLayers().indexOf(layer) + 1}`,
+              layer,
+              "drawn"
+            );
+            layerList.appendChild(layerItem);
+          });
+        }
+
+        // Add uploaded layers
+        Object.keys(overlayLayers).forEach((name) => {
+          const layerItem = createLayerItem(
+            name,
+            overlayLayers[name],
+            "overlay"
+          );
+          layerList.appendChild(layerItem);
+        });
+
+        if (layerList.innerHTML === "") {
+          layerList.innerHTML =
+            '<div style="text-align: center; color: #666; font-size: 12px; padding: 10px;">No layers available</div>';
+        }
+      }
+
+      // Create layer item
+      function createLayerItem(name, layer, type) {
+        const div = document.createElement("div");
+        div.className = "layer-item";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "layer-checkbox";
+        checkbox.checked = map.hasLayer(layer);
+        checkbox.onchange = function () {
+          if (this.checked) {
+            map.addLayer(layer);
+          } else {
+            map.removeLayer(layer);
+          }
+        };
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "layer-name";
+        nameSpan.textContent = name;
+
+        const opacity = document.createElement("input");
+        opacity.type = "range";
+        opacity.className = "layer-opacity";
+        opacity.min = "0";
+        opacity.max = "1";
+        opacity.step = "0.1";
+        opacity.value = "1";
+        opacity.onchange = function () {
+          if (layer.setStyle) {
+            layer.setStyle({
+              opacity: this.value,
+              fillOpacity: this.value * 0.5,
+            });
+          } else if (layer.setOpacity) {
+            layer.setOpacity(this.value);
+          }
+        };
+
+        div.appendChild(checkbox);
+        div.appendChild(nameSpan);
+        div.appendChild(opacity);
+
+        return div;
+      }
+
+      // Initialize everything when page loads
+      document.addEventListener("DOMContentLoaded", function () {
+        // Add a small delay to ensure all libraries are loaded
+        setTimeout(function () {
+          initializeMap();
+        }, 100);
+      });
+
+      // Utility Functions
+      function toggleUtilityTool(toolName) {
+        utilityToolsState[toolName] = !utilityToolsState[toolName];
+
+        switch (toolName) {
+          case 'gridOverlay':
+            toggleGridOverlay();
+            break;
+          case 'graticule':
+            toggleGraticule();
+            break;
+          case 'crosshairs':
+            toggleCrosshairs();
+            break;
+          case 'mousePosition':
+            toggleMousePosition();
+            break;
+          case 'unitsConverter':
+            toggleUnitsConverter();
+            break;
+        }
+
+        // Update button appearance
+        updateUtilityToolButton(toolName);
+      }
+
+      // Activate utility tools (temporary activation)
+      function activateUtilityTool(toolName) {
+        // Deactivate other active tools first
+        deactivateAllUtilityTools();
+
+        switch (toolName) {
+          case 'distanceFromPoint':
+            activateDistanceFromPoint();
+            break;
+          case 'bearingCalculator':
+            activateBearingCalculator();
+            break;
+          case 'slopeAnalysis':
+            activateSlopeAnalysis();
+            break;
+        }
+      }
+
+      // Open utility tool dialogs
+      function openUtilityTool(toolName) {
+        switch (toolName) {
+          case 'coordinateConverter':
+            openCoordinateConverter();
+            break;
+        }
+      }
+
+      // Grid Overlay Implementation
+      function toggleGridOverlay() {
+        if (utilityToolsState.gridOverlay) {
+          addGridOverlay();
+        } else {
+          removeGridOverlay();
+        }
+      }
+
+      function addGridOverlay() {
+        if (gridLayer) return;
+
+        gridLayer = L.layerGroup();
+
+        const bounds = map.getBounds();
+        const zoom = map.getZoom();
+
+        // Calculate grid spacing based on zoom level
+        let gridSpacing = 0.01; // degrees
+        if (zoom > 10) gridSpacing = 0.001;
+        if (zoom > 15) gridSpacing = 0.0001;
+        if (zoom < 8) gridSpacing = 0.1;
+        if (zoom < 5) gridSpacing = 1;
+
+        // Create vertical lines
+        for (let lng = Math.floor(bounds.getWest() / gridSpacing) * gridSpacing;
+          lng <= bounds.getEast();
+          lng += gridSpacing) {
+          const line = L.polyline([
+            [bounds.getSouth(), lng],
+            [bounds.getNorth(), lng]
+          ], {
+            color: '#666',
+            weight: 1,
+            opacity: 0.5
+          });
+          gridLayer.addLayer(line);
+        }
+
+        // Create horizontal lines
+        for (let lat = Math.floor(bounds.getSouth() / gridSpacing) * gridSpacing;
+          lat <= bounds.getNorth();
+          lat += gridSpacing) {
+          const line = L.polyline([
+            [lat, bounds.getWest()],
+            [lat, bounds.getEast()]
+          ], {
+            color: '#666',
+            weight: 1,
+            opacity: 0.5
+          });
+          gridLayer.addLayer(line);
+        }
+
+        gridLayer.addTo(map);
+      }
+
+      function removeGridOverlay() {
+        if (gridLayer) {
+          map.removeLayer(gridLayer);
+          gridLayer = null;
+        }
+      }
+
+      // Graticule Implementation
+      function toggleGraticule() {
+        if (utilityToolsState.graticule) {
+          addGraticule();
+        } else {
+          removeGraticule();
+        }
+      }
+
+      function addGraticule() {
+        if (graticuleLayer) return;
+
+        graticuleLayer = L.layerGroup();
+
+        // Add degree lines every 10 degrees
+        for (let lat = -80; lat <= 80; lat += 10) {
+          const line = L.polyline([
+            [lat, -180],
+            [lat, 180]
+          ], {
+            color: '#ff0000',
+            weight: 1,
+            opacity: 0.7,
+            dashArray: '5, 5'
+          });
+
+          // Add label
+          const label = L.marker([lat, 0], {
+            icon: L.divIcon({
+              className: 'graticule-label',
+              html: `${lat}°`,
+              iconSize: [30, 20]
+            })
+          });
+
+          graticuleLayer.addLayer(line);
+          graticuleLayer.addLayer(label);
+        }
+
+        for (let lng = -180; lng <= 180; lng += 10) {
+          const line = L.polyline([
+            [-85, lng],
+            [85, lng]
+          ], {
+            color: '#ff0000',
+            weight: 1,
+            opacity: 0.7,
+            dashArray: '5, 5'
+          });
+
+          // Add label
+          const label = L.marker([0, lng], {
+            icon: L.divIcon({
+              className: 'graticule-label',
+              html: `${lng}°`,
+              iconSize: [30, 20]
+            })
+          });
+
+          graticuleLayer.addLayer(line);
+          graticuleLayer.addLayer(label);
+        }
+
+        graticuleLayer.addTo(map);
+      }
+
+      function removeGraticule() {
+        if (graticuleLayer) {
+          map.removeLayer(graticuleLayer);
+          graticuleLayer = null;
+        }
+      }
+
+      // Crosshairs Implementation
+      function toggleCrosshairs() {
+        if (utilityToolsState.crosshairs) {
+          addCrosshairs();
+        } else {
+          removeCrosshairs();
+        }
+      }
+
+      function addCrosshairs() {
+        if (crosshairsMarker) return;
+
+        const center = map.getCenter();
+        crosshairsMarker = L.marker(center, {
+          icon: L.divIcon({
+            className: 'crosshairs-icon',
+            html: '<i class="fas fa-crosshairs" style="font-size: 24px; color: red;"></i>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          }),
+          draggable: false
+        }).addTo(map);
+
+        // Update crosshairs position on map move
+        map.on('move', updateCrosshairs);
+      }
+
+      function updateCrosshairs() {
+        if (crosshairsMarker) {
+          crosshairsMarker.setLatLng(map.getCenter());
+        }
+      }
+
+      function removeCrosshairs() {
+        if (crosshairsMarker) {
+          map.removeLayer(crosshairsMarker);
+          crosshairsMarker = null;
+          map.off('move', updateCrosshairs);
+        }
+      }
+
+      // Mouse Position Implementation
+      function toggleMousePosition() {
+        utilityToolsState.mousePosition = !utilityToolsState.mousePosition;
+        if (utilityToolsState.mousePosition) {
+          addMousePosition();
+        } else {
+          removeMousePosition();
+        }
+      }
+
+      function addMousePosition() {
+        if (mousePositionControl) {
+          removeMousePosition(); // Remove existing control if any
+        }
+
+        mousePositionControl = L.control({ position: 'bottomleft' });
+
+        mousePositionControl.onAdd = function (map) {
+          this._div = L.DomUtil.create('div', 'mouse-position-control');
+          this._div.style.backgroundColor = 'white';
+          this._div.style.padding = '5px 10px';
+          this._div.style.borderRadius = '4px';
+          this._div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+          this._div.style.fontSize = '12px';
+          this._div.style.fontFamily = 'monospace';
+          this._div.innerHTML = 'Move mouse over map';
+          return this._div;
+        };
+
+        mousePositionControl.update = function (lat, lng) {
+          if (this._div) {
+            this._div.innerHTML = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+          }
+        };
+
+        mousePositionControl.addTo(map);
+
+        // Add mousemove event listener
+        map.on('mousemove', function (e) {
+          if (mousePositionControl && mousePositionControl.update) {
+            mousePositionControl.update(e.latlng.lat, e.latlng.lng);
+          }
+        });
+      }
+
+      function removeMousePosition() {
+        if (mousePositionControl) {
+          map.removeControl(mousePositionControl);
+          map.off('mousemove');
+          mousePositionControl = null;
+        }
+      }
+
+      // Distance from Point Implementation
+      function activateDistanceFromPoint() {
+        // Clear any existing distance circles
+        if (distanceCircles && distanceCircles.length > 0) {
+          distanceCircles.forEach(circle => {
+            if (circle && map.hasLayer(circle)) {
+              map.removeLayer(circle);
+            }
+          });
+          distanceCircles = [];
+        }
+
+        map.getContainer().style.cursor = 'crosshair';
+
+        const instruction = L.control({ position: 'topright' });
+        instruction.onAdd = function () {
+          const div = L.DomUtil.create('div', 'instruction-control');
+          div.innerHTML = 'Click on map to set center point for distance measurement';
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '5px';
+          div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+          div.style.zIndex = '1000';
+          return div;
+        };
+        instruction.addTo(map);
+
+        function onMapClick(e) {
+          // Remove instruction
+          map.removeControl(instruction);
+
+          // Clear previous circles
+          distanceCircles.forEach(circle => {
+            if (circle && map.hasLayer(circle)) {
+              map.removeLayer(circle);
+            }
+          });
+          distanceCircles = [];
+
+          const centerPoint = e.latlng;
+
+          // Add center marker
+          const centerMarker = L.marker(centerPoint, {
+            icon: L.divIcon({
+              className: 'center-point',
+              html: '<i class="fas fa-bullseye" style="color: red; font-size: 20px;"></i>',
+              iconSize: [25, 25],
+              iconAnchor: [12, 12]
+            })
+          }).addTo(map);
+
+          // Add distance circles (1km, 5km, 10km)
+          const distances = [1000, 5000, 10000]; // meters
+          const colors = ['#ff0000', '#00ff00', '#0000ff'];
+          const labels = ['1 km', '5 km', '10 km'];
+
+          distances.forEach((distance, index) => {
+            const circle = L.circle(centerPoint, {
+              radius: distance,
+              color: colors[index],
+              fillColor: colors[index],
+              fillOpacity: 0.1,
+              weight: 2
+            }).addTo(map);
+
+            // Add distance label
+            const label = L.marker(centerPoint, {
+              icon: L.divIcon({
+                className: 'distance-label',
+                html: `<div style="background: white; padding: 2px 5px; border-radius: 3px; font-size: 12px;">${labels[index]}</div>`,
+                iconSize: [50, 20],
+                iconAnchor: [25, 10]
+              })
+            }).addTo(map);
+
+            // Position label on the circle
+            const angle = (index * 45) * Math.PI / 180; // Spread labels around the circle
+            const labelLat = centerPoint.lat + (distance / 111000) * Math.sin(angle);
+            const labelLng = centerPoint.lng + (distance / (111000 * Math.cos(centerPoint.lat * Math.PI / 180))) * Math.cos(angle);
+            label.setLatLng([labelLat, labelLng]);
+
+            distanceCircles.push(circle);
+            distanceCircles.push(label);
+          });
+
+          distanceCircles.push(centerMarker);
+
+          map.off('click', onMapClick);
+          map.getContainer().style.cursor = '';
+        }
+
+        map.on('click', onMapClick);
+      }
+
+      // Bearing Calculator Implementation
+      function activateBearingCalculator() {
+        map.getContainer().style.cursor = 'crosshair';
+        let firstPoint = null;
+
+        const instruction = L.control({ position: 'topright' });
+        instruction.onAdd = function () {
+          const div = L.DomUtil.create('div', 'instruction-control');
+          div.innerHTML = 'Click two points to calculate bearing';
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '5px';
+          div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+          return div;
+        };
+        instruction.addTo(map);
+
+        function onMapClick(e) {
+          if (!firstPoint) {
+            firstPoint = e.latlng;
+
+            // Add first point marker
+            L.marker(firstPoint, {
+              icon: L.divIcon({
+                className: 'bearing-point',
+                html: '<div style="background: red; width: 10px; height: 10px; border-radius: 50%;"></div>',
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+              })
+            }).addTo(map);
+
+            instruction._div.innerHTML = 'Click second point';
+          } else {
+            const secondPoint = e.latlng;
+
+            // Add second point marker
+            L.marker(secondPoint, {
+              icon: L.divIcon({
+                className: 'bearing-point',
+                html: '<div style="background: blue; width: 10px; height: 10px; border-radius: 50%;"></div>',
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+              })
+            }).addTo(map);
+
+            // Calculate bearing
+            const bearing = calculateBearing(firstPoint, secondPoint);
+            const distance = firstPoint.distanceTo(secondPoint);
+
+            // Draw line
+            bearingLine = L.polyline([firstPoint, secondPoint], {
+              color: 'green',
+              weight: 3
+            }).addTo(map);
+
+            // Show results
+            const popup = L.popup()
+              .setLatLng(secondPoint)
+              .setContent(`
+                <div>
+                  <strong>Bearing:</strong> ${bearing.toFixed(2)}°<br>
+                  <strong>Distance:</strong> ${(distance / 1000).toFixed(2)} km
+                </div>
+              `)
+              .openOn(map);
+
+            // Cleanup
+            map.removeControl(instruction);
+            map.off('click', onMapClick);
+            map.getContainer().style.cursor = '';
+          }
+        }
+
+        map.on('click', onMapClick);
+      }
+
+      function calculateBearing(point1, point2) {
+        const lat1 = point1.lat * Math.PI / 180;
+        const lat2 = point2.lat * Math.PI / 180;
+        const deltaLng = (point2.lng - point1.lng) * Math.PI / 180;
+
+        const x = Math.sin(deltaLng) * Math.cos(lat2);
+        const y = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLng);
+
+        const bearing = Math.atan2(x, y) * 180 / Math.PI;
+        return (bearing + 360) % 360;
+      }
+
+      // Coordinate Converter Implementation
+      function openCoordinateConverter() {
+        const converterHTML = `
+          <div id="coordinate-converter" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+               background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
+               z-index: 2000; min-width: 400px;">
+              <h3>Coordinate Converter</h3>
+              <div style="margin: 15px 0;">
+                  <label>Decimal Degrees:</label>
+                  <input type="text" id="dd-input" placeholder="lat, lng" style="width: 100%; padding: 5px; margin: 5px 0;">
+              </div>
+              <div style="margin: 15px 0;">
+                  <label>Degrees Minutes Seconds:</label>
+                  <input type="text" id="dms-input" placeholder="40°26'46"N 79°58'56"W" style="width: 100%; padding: 5px; margin: 5px 0;">
+              </div>
+              <div style="margin: 15px 0;">
+                  <label>UTM:</label>
+                  <input type="text" id="utm-input" placeholder="Zone Easting Northing" style="width: 100%; padding: 5px; margin: 5px 0;">
+              </div>
+              <div style="margin: 15px 0;">
+                  <button onclick="convertCoordinates()" style="background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px;">Convert</button>
+                  <button onclick="closeCoordinateConverter()" style="background: #e74c3c; color: white; border: none; padding: 10px 20px; border-radius: 5px;">Close</button>
+              </div>
+          </div>
+          <div id="converter-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+               background: rgba(0,0,0,0.5); z-index: 1999;" onclick="closeCoordinateConverter()"></div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', converterHTML);
+      }
+
+      function convertCoordinates() {
+        const ddInput = document.getElementById('dd-input').value;
+        const dmsInput = document.getElementById('dms-input').value;
+        const utmInput = document.getElementById('utm-input').value;
+
+        // Simple conversion logic (you can enhance this)
+        if (ddInput) {
+          const [lat, lng] = ddInput.split(',').map(x => parseFloat(x.trim()));
+          if (!isNaN(lat) && !isNaN(lng)) {
+            document.getElementById('dms-input').value = convertDDToDMS(lat, lng);
+            // Add UTM conversion here if needed
+          }
+        }
+      }
+
+      function convertDDToDMS(lat, lng) {
+        function ddToDms(dd, isLng = false) {
+          const deg = Math.floor(Math.abs(dd));
+          const min = Math.floor((Math.abs(dd) - deg) * 60);
+          const sec = Math.round(((Math.abs(dd) - deg) * 60 - min) * 60);
+          const dir = dd >= 0 ? (isLng ? 'E' : 'N') : (isLng ? 'W' : 'S');
+          return `${deg}°${min}'${sec}"${dir}`;
+        }
+
+        return `${ddToDms(lat)} ${ddToDms(lng, true)}`;
+      }
+
+      function closeCoordinateConverter() {
+        const converter = document.getElementById('coordinate-converter');
+        const overlay = document.getElementById('converter-overlay');
+        if (converter) converter.remove();
+        if (overlay) overlay.remove();
+      }
+
+      // Units Converter Implementation
+      function toggleUnitsConverter() {
+        utilityToolsState.unitsConverter = !utilityToolsState.unitsConverter;
+        if (utilityToolsState.unitsConverter) {
+          currentUnit = currentUnit === 'metric' ? 'imperial' : 'metric';
+          updateUnitsDisplay();
+          updateAllMeasurements();
+        }
+      }
+
+      function updateUnitsDisplay() {
+        const unitText = currentUnit === 'metric' ? 'Metric (km/m²)' : 'Imperial (mi/ft²)';
+        
+        // Show notification
+        const notification = L.control({ position: 'topright' });
+        notification.onAdd = function () {
+          const div = L.DomUtil.create('div', 'units-notification');
+          div.innerHTML = `Units switched to: ${unitText}`;
+          div.style.background = '#2ecc71';
+          div.style.color = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '5px';
+          div.style.zIndex = '1000';
+          return div;
+        };
+        notification.addTo(map);
+
+        setTimeout(() => {
+          map.removeControl(notification);
+        }, 2000);
+      }
+
+      function updateAllMeasurements() {
+        // Update distance circles if they exist
+        if (distanceCircles && distanceCircles.length > 0) {
+          distanceCircles.forEach(circle => {
+            if (circle && map.hasLayer(circle)) {
+              const currentRadius = circle.getRadius();
+              const newRadius = convertDistance(currentRadius);
+              circle.setRadius(newRadius);
+            }
+          });
+        }
+
+        // Update any existing measurements on the map
+        map.eachLayer(layer => {
+          if (layer instanceof L.Polyline) {
+            const distance = layer.getLatLngs().reduce((total, latlng, index, array) => {
+              if (index > 0) {
+                return total + array[index - 1].distanceTo(latlng);
+              }
+              return total;
+            }, 0);
+            const convertedDistance = convertDistance(distance);
+            // Update any popups or labels associated with the line
+            if (layer._popup) {
+              layer._popup.setContent(`Distance: ${formatDistance(convertedDistance)}`);
+            }
+          }
+        });
+      }
+
+      function convertDistance(distance) {
+        if (currentUnit === 'metric') {
+          // Convert from imperial to metric
+          return distance * 1.60934; // miles to kilometers
+        } else {
+          // Convert from metric to imperial
+          return distance * 0.621371; // kilometers to miles
+        }
+      }
+
+      function formatDistance(distance) {
+        if (currentUnit === 'metric') {
+          return `${(distance / 1000).toFixed(2)} km`;
+        } else {
+          return `${(distance / 1609.34).toFixed(2)} mi`;
+        }
+      }
+
+      function convertArea(area) {
+        if (currentUnit === 'metric') {
+          // Convert from imperial to metric
+          return area * 2.58999; // square miles to square kilometers
+        } else {
+          // Convert from metric to imperial
+          return area * 0.386102; // square kilometers to square miles
+        }
+      }
+
+      function formatArea(area) {
+        if (currentUnit === 'metric') {
+          return `${(area / 1000000).toFixed(2)} km²`;
+        } else {
+          return `${(area / 2589988.11).toFixed(2)} mi²`;
+        }
+      }
+
+      // Slope Analysis Implementation
+      function activateSlopeAnalysis() {
+        map.getContainer().style.cursor = 'crosshair';
+
+        const instruction = L.control({ position: 'topright' });
+        instruction.onAdd = function () {
+          const div = L.DomUtil.create('div', 'instruction-control');
+          div.innerHTML = 'Click two points to calculate slope';
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '5px';
+          div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+          return div;
+        };
+        instruction.addTo(map);
+
+        let firstPoint = null;
+
+        function onMapClick(e) {
+          if (!firstPoint) {
+            firstPoint = e.latlng;
+            L.marker(firstPoint).addTo(map);
+            instruction._div.innerHTML = 'Click second point';
+          } else {
+            const secondPoint = e.latlng;
+            L.marker(secondPoint).addTo(map);
+
+            // For demonstration, we'll calculate a mock slope
+            // In reality, you'd need elevation data
+            const distance = firstPoint.distanceTo(secondPoint);
+            const elevationChange = Math.random() * 100 - 50; // Mock elevation change
+            const slope = (elevationChange / distance) * 100;
+
+            L.polyline([firstPoint, secondPoint], {
+              color: 'purple',
+              weight: 3
+            }).addTo(map);
+
+            const popup = L.popup()
+              .setLatLng(secondPoint)
+              .setContent(`
+                <div>
+                  <strong>Distance:</strong> ${(distance / 1000).toFixed(2)} km<br>
+                  <strong>Elevation Change:</strong> ${elevationChange.toFixed(1)} m<br>
+                  <strong>Slope:</strong> ${slope.toFixed(2)}%
+                </div>
+              `)
+              .openOn(map);
+
+            map.removeControl(instruction);
+            map.off('click', onMapClick);
+            map.getContainer().style.cursor = '';
+          }
+        }
+
+        map.on('click', onMapClick);
+      }
+
+      // Helper Functions
+      function updateUtilityToolButton(toolName) {
+        const button = document.querySelector(`[onclick*="${toolName}"]`);
+        if (button) {
+          if (utilityToolsState[toolName]) {
+            button.classList.add('active');
+          } else {
+            button.classList.remove('active');
+          }
+        }
+      }
+
+      function deactivateAllUtilityTools() {
+        // Clear any active temporary tools
+        if (bearingLine) {
+          map.removeLayer(bearingLine);
+          bearingLine = null;
+        }
+
+        distanceCircles.forEach(circle => map.removeLayer(circle));
+        distanceCircles = [];
+
+        map.getContainer().style.cursor = '';
+      }
+
+      // Add this JavaScript code before the closing </script> tag
+      document.addEventListener('DOMContentLoaded', function() {
+        const navbar = document.querySelector('.navbar');
+        const navbarContent = document.querySelector('.navbar-content');
+        const overflowToggle = document.querySelector('.navbar-overflow-toggle');
+        
+        // Toggle navbar expansion
+        if (overflowToggle) {
+          overflowToggle.addEventListener('click', function() {
+            navbar.classList.toggle('expanded');
+            navbarContent.classList.toggle('expanded');
+            this.classList.toggle('active');
+          });
+        }
+
+        // Handle dropdowns
+        const dropdowns = document.querySelectorAll('.dropdown');
+        dropdowns.forEach(dropdown => {
+          const toggle = dropdown.querySelector('.dropdown-toggle');
+          const menu = dropdown.querySelector('.dropdown-menu');
+
+          if (toggle && menu) {
+            toggle.addEventListener('click', function(e) {
+              e.stopPropagation();
+              menu.classList.toggle('show');
+            });
+          }
+        });
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+          if (!e.target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+              menu.classList.remove('show');
+            });
+          }
+        });
+
+        // Handle window resize
+        let resizeTimer;
+        window.addEventListener('resize', function() {
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(function() {
+            const isExpanded = navbar.classList.contains('expanded');
+            if (isExpanded) {
+              navbar.classList.remove('expanded');
+              navbarContent.classList.remove('expanded');
+              if (overflowToggle) {
+                overflowToggle.classList.remove('active');
+              }
+            }
+          }, 250);
+        });
+      });
+
+      // Advanced Tools Implementation
+      let legendControl = null;
+      let elevationMarker = null;
+      let bufferLayer = null;
+      let intersectionMarkers = [];
+
+      function toggleAdvancedTools() {
+        const menu = document.querySelector('.advanced-tools-menu');
+        menu.classList.toggle('show');
+      }
+
+      // Close advanced tools menu when clicking outside
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('.advanced-tools-dropdown')) {
+          document.querySelector('.advanced-tools-menu').classList.remove('show');
+        }
+      });
+
+      function findMyLocation() {
+        if ("geolocation" in navigator) {
+          map.locate({setView: true, maxZoom: 16});
+          
+          map.on('locationfound', function(e) {
+            const radius = e.accuracy;
+            
+            L.marker(e.latlng).addTo(map)
+              .bindPopup(`You are within ${radius.toFixed(0)} meters from this point`).openPopup();
+            
+            L.circle(e.latlng, radius).addTo(map);
+          });
+          
+          map.on('locationerror', function(e) {
+            alert("Location access denied. Please enable location services.");
+          });
+        } else {
+          alert("Geolocation is not supported by your browser");
+        }
+      }
+
+      function getPointElevation() {
+        map.getContainer().style.cursor = 'crosshair';
+        
+        const instruction = L.control({ position: 'topright' });
+        instruction.onAdd = function() {
+          const div = L.DomUtil.create('div', 'instruction-control');
+          div.innerHTML = 'Click on map to get elevation';
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '5px';
+          div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+          return div;
+        };
+        instruction.addTo(map);
+
+        function onMapClick(e) {
+          if (elevationMarker) {
+            map.removeLayer(elevationMarker);
+          }
+
+          // Using OpenTopography API for elevation data
+          fetch(`https://portal.opentopography.org/API/astergdem?demtype=ASTERGDEMV3&south=${e.latlng.lat}&north=${e.latlng.lat}&west=${e.latlng.lng}&east=${e.latlng.lng}&outputFormat=GTiff`)
+            .then(response => response.json())
+            .then(data => {
+              const elevation = data.data[0];
+              elevationMarker = L.marker(e.latlng).addTo(map)
+                .bindPopup(`Elevation: ${elevation.toFixed(2)} meters`).openPopup();
+            })
+            .catch(error => {
+              console.error('Error fetching elevation:', error);
+              alert('Error fetching elevation data. Please try again.');
+            });
+
+          map.removeControl(instruction);
+          map.off('click', onMapClick);
+          map.getContainer().style.cursor = '';
+        }
+
+        map.on('click', onMapClick);
+      }
+
+      function findIntersections() {
+        map.getContainer().style.cursor = 'crosshair';
+        
+        const instruction = L.control({ position: 'topright' });
+        instruction.onAdd = function() {
+          const div = L.DomUtil.create('div', 'instruction-control');
+          div.innerHTML = 'Click to start drawing a line. Click again to finish.';
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '5px';
+          div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+          return div;
+        };
+        instruction.addTo(map);
+
+        let linePoints = [];
+        let currentLine = null;
+
+        function onMapClick(e) {
+          linePoints.push(e.latlng);
+          
+          if (linePoints.length === 1) {
+            currentLine = L.polyline([e.latlng], {color: 'blue'}).addTo(map);
+            instruction._div.innerHTML = 'Click to finish the line';
+          } else {
+            currentLine.setLatLngs(linePoints);
+            
+            // Find intersections with existing lines
+            map.eachLayer(layer => {
+              if (layer instanceof L.Polyline && layer !== currentLine) {
+                const intersections = findLineIntersections(linePoints, layer.getLatLngs());
+                intersections.forEach(point => {
+                  const marker = L.marker(point, {
+                    icon: L.divIcon({
+                      className: 'intersection-point',
+                      html: '<div style="background: red; width: 10px; height: 10px; border-radius: 50%;"></div>',
+                      iconSize: [10, 10],
+                      iconAnchor: [5, 5]
+                    })
+                  }).addTo(map)
+                    .bindPopup('Intersection Point');
+                  intersectionMarkers.push(marker);
+                });
+              }
+            });
+
+            map.removeControl(instruction);
+            map.off('click', onMapClick);
+            map.getContainer().style.cursor = '';
+          }
+        }
+
+        map.on('click', onMapClick);
+      }
+
+      function findLineIntersections(line1, line2) {
+        const intersections = [];
+        for (let i = 0; i < line1.length - 1; i++) {
+          for (let j = 0; j < line2.length - 1; j++) {
+            const intersection = findIntersection(
+              line1[i], line1[i + 1],
+              line2[j], line2[j + 1]
+            );
+            if (intersection) {
+              intersections.push(intersection);
+            }
+          }
+        }
+        return intersections;
+      }
+
+      function findIntersection(p1, p2, p3, p4) {
+        const x1 = p1.lng, y1 = p1.lat;
+        const x2 = p2.lng, y2 = p2.lat;
+        const x3 = p3.lng, y3 = p3.lat;
+        const x4 = p4.lng, y4 = p4.lat;
+
+        const denominator = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+        if (denominator === 0) return null;
+
+        const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denominator;
+        const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denominator;
+
+        if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+          const x = x1 + ua * (x2 - x1);
+          const y = y1 + ua * (y2 - y1);
+          return L.latLng(y, x);
+        }
+        return null;
+      }
+
+      function performBufferAnalysis() {
+        map.getContainer().style.cursor = 'crosshair';
+        
+        const instruction = L.control({ position: 'topright' });
+        instruction.onAdd = function() {
+          const div = L.DomUtil.create('div', 'instruction-control');
+          div.innerHTML = 'Click on map to create buffer';
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '5px';
+          div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+          return div;
+        };
+        instruction.addTo(map);
+
+        function onMapClick(e) {
+          if (bufferLayer) {
+            map.removeLayer(bufferLayer);
+          }
+
+          const bufferRadius = 1000; // 1km buffer
+          bufferLayer = L.circle(e.latlng, {
+            radius: bufferRadius,
+            color: 'red',
+            fillColor: '#f03',
+            fillOpacity: 0.2
+          }).addTo(map);
+
+          // Add buffer info popup
+          L.popup()
+            .setLatLng(e.latlng)
+            .setContent(`Buffer radius: ${(bufferRadius/1000).toFixed(1)} km`)
+            .openOn(map);
+
+          map.removeControl(instruction);
+          map.off('click', onMapClick);
+          map.getContainer().style.cursor = '';
+        }
+
+        map.on('click', onMapClick);
+      }
+
+      function toggleLegend() {
+        if (legendControl) {
+          map.removeControl(legendControl);
+          legendControl = null;
+        } else {
+          legendControl = L.control({ position: 'bottomright' });
+          
+          legendControl.onAdd = function() {
+            const div = L.DomUtil.create('div', 'legend-control');
+            div.innerHTML = `
+              <h4>Map Legend</h4>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #3388ff;"></div>
+                <div class="legend-label">Base Map</div>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #ff0000;"></div>
+                <div class="legend-label">Buffer Zone</div>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #00ff00;"></div>
+                <div class="legend-label">Intersection Points</div>
+              </div>
+            `;
+            return div;
+          };
+          
+          legendControl.addTo(map);
+        }
+      }
+
+      // Navbar Toggle Functionality
+      document.addEventListener('DOMContentLoaded', function() {
+        const navbar = document.getElementById('navbar');
+        const navbarContent = document.getElementById('navbarContent');
+        const navbarToggle = document.getElementById('navbarToggle');
+        const toggleIcon = navbarToggle.querySelector('i');
+        const navbarGroups = navbarContent.querySelectorAll('.navbar-group');
+        
+        // Function to check which items should be hidden
+        function checkNavbarOverflow() {
+          const navbarWidth = navbarContent.offsetWidth;
+          const toggleWidth = navbarToggle.offsetWidth + 20; // Add some margin
+          let currentWidth = 0;
+          let visibleCount = 0;
+          
+          navbarGroups.forEach((group, index) => {
+            const groupWidth = group.offsetWidth;
+            currentWidth += groupWidth;
+            
+            if (currentWidth <= navbarWidth - toggleWidth) {
+              group.classList.remove('overflow-item');
+              visibleCount++;
+            } else {
+              group.classList.add('overflow-item');
+            }
+          });
+          
+          // Show/hide toggle button based on overflow
+          navbarToggle.style.display = visibleCount < navbarGroups.length ? 'flex' : 'none';
+        }
+        
+        navbarToggle.addEventListener('click', function() {
+          navbar.classList.toggle('expanded');
+          navbarContent.classList.toggle('expanded');
+          navbarToggle.classList.toggle('active');
+          toggleIcon.classList.toggle('fa-chevron-down');
+          toggleIcon.classList.toggle('fa-chevron-up');
+        });
+
+        // Close expanded navbar when clicking outside
+        document.addEventListener('click', function(event) {
+          if (!navbar.contains(event.target) && navbar.classList.contains('expanded')) {
+            navbar.classList.remove('expanded');
+            navbarContent.classList.remove('expanded');
+            navbarToggle.classList.remove('active');
+            toggleIcon.classList.remove('fa-chevron-up');
+            toggleIcon.classList.add('fa-chevron-down');
+          }
+        });
+        
+        // Check overflow on load and resize
+        window.addEventListener('resize', checkNavbarOverflow);
+        checkNavbarOverflow();
+      });
+
+      // Reverse Geocoding Implementation
+      window.performReverseGeocoding = function() {
+        if (!map) {
+          console.error("Map not initialized");
+          return;
+        }
+        
+        map.getContainer().style.cursor = 'crosshair';
+        
+        const instruction = L.control({ position: 'topright' });
+        instruction.onAdd = function() {
+          const div = L.DomUtil.create('div', 'instruction-control');
+          div.innerHTML = 'Click on map to get address information';
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '5px';
+          div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+          return div;
+        };
+        instruction.addTo(map);
+
+        function onMapClick(e) {
+          const { lat, lng } = e.latlng;
+          
+          // Using Nominatim for reverse geocoding with proper headers
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'Geoportal/1.0'
+            }
+          })
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then(data => {
+              // Create marker with popup
+              const marker = L.marker([lat, lng]).addTo(map);
+              
+              // Format address information
+              const address = data.display_name || 'Address not found';
+              const details = data.address || {};
+              let popupContent = `
+                <div class="reverse-geocoding-popup">
+                  <strong>Address:</strong><br>
+                  ${address}<br><br>
+                  <strong>Details:</strong><br>
+              `;
+              
+              // Add address components if available
+              if (details) {
+                if (details.road) popupContent += `Road: ${details.road}<br>`;
+                if (details.house_number) popupContent += `House Number: ${details.house_number}<br>`;
+                if (details.suburb) popupContent += `Suburb: ${details.suburb}<br>`;
+                if (details.city) popupContent += `City: ${details.city}<br>`;
+                if (details.state) popupContent += `State: ${details.state}<br>`;
+                if (details.country) popupContent += `Country: ${details.country}<br>`;
+                if (details.postcode) popupContent += `Postcode: ${details.postcode}<br>`;
+              }
+              
+              popupContent += '</div>';
+              
+              marker.bindPopup(popupContent).openPopup();
+            })
+            .catch(error => {
+              console.error('Error fetching address:', error);
+              alert('Error fetching address information. Please try again.');
+            });
+
+          map.removeControl(instruction);
+          map.off('click', onMapClick);
+          map.getContainer().style.cursor = '';
+        }
+
+        map.on('click', onMapClick);
+      };
+
+      // Add this at the end of your script section, before the closing </script> tag
+      document.addEventListener('DOMContentLoaded', function() {
+        // Add event listener for reverse geocoding button
+        const reverseGeocodingBtn = document.getElementById('reverseGeocodingBtn');
+        if (reverseGeocodingBtn) {
+          reverseGeocodingBtn.addEventListener('click', function() {
+            if (!map) {
+              console.error("Map not initialized");
+              return;
+            }
+            
+            map.getContainer().style.cursor = 'crosshair';
+            
+            const instruction = L.control({ position: 'topright' });
+            instruction.onAdd = function() {
+              const div = L.DomUtil.create('div', 'instruction-control');
+              div.innerHTML = 'Click on map to get address information';
+              div.style.background = 'white';
+              div.style.padding = '10px';
+              div.style.borderRadius = '5px';
+              div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+              return div;
+            };
+            instruction.addTo(map);
+
+            function onMapClick(e) {
+              const { lat, lng } = e.latlng;
+              
+              // Using Nominatim for reverse geocoding with proper headers
+              fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+                headers: {
+                  'Accept': 'application/json',
+                  'User-Agent': 'Geoportal/1.0'
+                }
+              })
+                .then(response => {
+                  if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                  }
+                  return response.json();
+                })
+                .then(data => {
+                  // Create marker with popup
+                  const marker = L.marker([lat, lng]).addTo(map);
+                  
+                  // Format address information
+                  const address = data.display_name || 'Address not found';
+                  const details = data.address || {};
+                  let popupContent = `
+                    <div class="reverse-geocoding-popup">
+                      <strong>Address:</strong><br>
+                      ${address}<br><br>
+                      <strong>Details:</strong><br>
+                  `;
+                  
+                  // Add address components if available
+                  if (details) {
+                    if (details.road) popupContent += `Road: ${details.road}<br>`;
+                    if (details.house_number) popupContent += `House Number: ${details.house_number}<br>`;
+                    if (details.suburb) popupContent += `Suburb: ${details.suburb}<br>`;
+                    if (details.city) popupContent += `City: ${details.city}<br>`;
+                    if (details.state) popupContent += `State: ${details.state}<br>`;
+                    if (details.country) popupContent += `Country: ${details.country}<br>`;
+                    if (details.postcode) popupContent += `Postcode: ${details.postcode}<br>`;
+                  }
+                  
+                  popupContent += '</div>';
+                  
+                  marker.bindPopup(popupContent).openPopup();
+                })
+                .catch(error => {
+                  console.error('Error fetching address:', error);
+                  alert('Error fetching address information. Please try again.');
+                });
+
+              map.removeControl(instruction);
+              map.off('click', onMapClick);
+              map.getContainer().style.cursor = '';
+            }
+
+            map.on('click', onMapClick);
+          });
+        }
+      });
+
+      // Export Functions
+      function exportMapAsImage(format) {
+        if (!map) {
+          alert("Map not initialized");
+          return;
+        }
+
+        // Create a temporary container for the map
+        const container = document.createElement('div');
+        container.style.width = map.getSize().x + 'px';
+        container.style.height = map.getSize().y + 'px';
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        document.body.appendChild(container);
+
+        // Clone the map container
+        const mapClone = map.getContainer().cloneNode(true);
+        container.appendChild(mapClone);
+
+        // Use html2canvas to capture the map
+        html2canvas(mapClone, {
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: null,
+          scale: 2 // Higher quality
+        }).then(canvas => {
+          // Convert to image
+          const imgData = canvas.toDataURL(`image/${format}`);
+          
+          // Create download link
+          const link = document.createElement('a');
+          link.download = `map-export.${format}`;
+          link.href = imgData;
+          link.click();
+
+          // Cleanup
+          document.body.removeChild(container);
+        }).catch(error => {
+          console.error('Error exporting map:', error);
+          alert('Error exporting map. Please try again.');
+        });
+      }
+
+      function exportFeatures(format) {
+        console.log('Starting feature export...');
+        console.log('Map:', map);
+        console.log('Drawn Items:', drawnItems);
+
+        if (!map) {
+          alert("Map not initialized");
+          return;
+        }
+
+        if (!drawnItems) {
+          console.log('No drawnItems found, checking for drawn items in map...');
+          // Try to find drawn items in the map
+          const layers = map._layers;
+          let foundDrawnItems = null;
+          
+          for (let key in layers) {
+            if (layers[key] instanceof L.FeatureGroup) {
+              foundDrawnItems = layers[key];
+              break;
+            }
+          }
+
+          if (!foundDrawnItems) {
+            alert("No drawing layer found. Please draw some features first.");
+            return;
+          }
+          drawnItems = foundDrawnItems;
+        }
+
+        console.log('Getting GeoJSON from drawn items...');
+        const features = drawnItems.toGeoJSON();
+        console.log('Features:', features);
+
+        if (!features || !features.features || features.features.length === 0) {
+          alert("No features selected. Please draw some features first.");
+          return;
+        }
+
+        let data, mimeType, extension;
+        try {
+          switch (format) {
+            case 'geojson':
+              console.log('Exporting as GeoJSON...');
+              data = JSON.stringify(features, null, 2);
+              mimeType = 'application/json';
+              extension = 'geojson';
+              break;
+            case 'kml':
+              console.log('Exporting as KML...');
+              data = toKML(features);
+              mimeType = 'application/vnd.google-earth.kml+xml';
+              extension = 'kml';
+              break;
+            case 'shapefile':
+              alert("Shapefile export requires server-side processing. This feature is not available in the browser version.");
+              return;
+            default:
+              alert("Unsupported format");
+              return;
+          }
+
+          console.log('Creating download...');
+          // Create download link
+          const blob = new Blob([data], { type: mimeType });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `map-features.${extension}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
+          console.log('Export completed successfully');
+        } catch (error) {
+          console.error('Error during export:', error);
+          alert('Error exporting features: ' + error.message);
+        }
+      }
+
+      function toKML(geojson) {
+        console.log('Converting to KML...');
+        let kml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+        kml += '<kml xmlns="http://www.opengis.net/kml/2.2">\n';
+        kml += '<Document>\n';
+
+        geojson.features.forEach((feature, index) => {
+          console.log(`Processing feature ${index}:`, feature);
+          
+          if (feature.geometry.type === 'Point') {
+            kml += '<Placemark>\n';
+            kml += `<Point>\n<coordinates>${feature.geometry.coordinates.join(',')}</coordinates>\n</Point>\n`;
+            kml += '</Placemark>\n';
+          } else if (feature.geometry.type === 'LineString') {
+            kml += '<Placemark>\n';
+            kml += `<LineString>\n<coordinates>${feature.geometry.coordinates.map(coord => coord.join(',')).join(' ')}</coordinates>\n</LineString>\n`;
+            kml += '</Placemark>\n';
+          } else if (feature.geometry.type === 'Polygon') {
+            kml += '<Placemark>\n';
+            kml += `<Polygon>\n<outerBoundaryIs>\n<LinearRing>\n<coordinates>${feature.geometry.coordinates[0].map(coord => coord.join(',')).join(' ')}</coordinates>\n</LinearRing>\n</outerBoundaryIs>\n</Polygon>\n`;
+            kml += '</Placemark>\n';
+          } else {
+            console.warn(`Unsupported geometry type: ${feature.geometry.type}`);
+          }
+        });
+
+        kml += '</Document>\n</kml>';
+        console.log('KML conversion completed');
+        return kml;
+      }
+
+      function shareMapView() {
+        if (!map) {
+          alert("Map not initialized");
+          return;
+        }
+
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const url = `${window.location.origin}${window.location.pathname}?lat=${center.lat}&lng=${center.lng}&zoom=${zoom}`;
+        
+        // Create a temporary input element
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        
+        try {
+          // Try using the modern clipboard API
+          navigator.clipboard.writeText(url).then(() => {
+            alert('Map view URL copied to clipboard!');
+          }).catch(() => {
+            // Fallback to execCommand
+            document.execCommand('copy');
+            alert('Map view URL copied to clipboard!');
+          });
+        } catch (error) {
+          console.error('Error copying to clipboard:', error);
+          alert('Error copying URL. Please copy it manually: ' + url);
+        }
+        
+        document.body.removeChild(input);
+      }
+
+      function generatePDFReport() {
+        if (!map) {
+          alert("Map not initialized");
+          return;
+        }
+
+        // Create a temporary container for the report
+        const container = document.createElement('div');
+        container.style.width = '800px';
+        container.style.padding = '20px';
+        document.body.appendChild(container);
+
+        // Capture map as image
+        html2canvas(map.getContainer(), {
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: null,
+          scale: 2 // Higher quality
+        }).then(canvas => {
+          // Create report content
+          const report = document.createElement('div');
+          report.innerHTML = `
+            <h2>Map Report</h2>
+            <p>Generated on: ${new Date().toLocaleString()}</p>
+            <p>Center: ${map.getCenter().lat.toFixed(6)}, ${map.getCenter().lng.toFixed(6)}</p>
+            <p>Zoom Level: ${map.getZoom()}</p>
+            <img src="${canvas.toDataURL()}" style="width: 100%; margin: 20px 0;">
+            <h3>Active Layers:</h3>
+            <ul>
+              ${Object.keys(overlayLayers).map(layer => `<li>${layer}</li>`).join('')}
+            </ul>
+          `;
+          container.appendChild(report);
+
+          // Generate PDF
+          const opt = {
+            margin: 1,
+            filename: 'map-report.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+          };
+
+          html2pdf().set(opt).from(container).save();
+          
+          // Cleanup
+          document.body.removeChild(container);
+        }).catch(error => {
+          console.error('Error generating PDF:', error);
+          alert('Error generating PDF report. Please try again.');
+        });
+      }
+
+      // Add required libraries
+      const html2canvasScript = document.createElement('script');
+      html2canvasScript.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
+      document.head.appendChild(html2canvasScript);
+
+      const html2pdfScript = document.createElement('script');
+      html2pdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      document.head.appendChild(html2pdfScript);
+
+      // CAD Import Functionality
+      window.handleCADFile = function(event) {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          // Show loading state
+          const loadingControl = L.control({ position: 'topright' });
+          loadingControl.onAdd = function() {
+              const div = L.DomUtil.create('div', 'loading-control');
+              div.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading CAD file...';
+              div.style.background = 'white';
+              div.style.padding = '10px';
+              div.style.borderRadius = '5px';
+              div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+              return div;
+          };
+          loadingControl.addTo(map);
+
+          const reader = new FileReader();
+          reader.onload = function(e) {
+              try {
+                  const dxfContent = e.target.result;
+                  const parser = new DxfParser();
+                  const dxf = parser.parseSync(dxfContent);
+                  
+                  // Convert DXF to GeoJSON
+                  const converter = new L.DXF();
+                  const geojson = converter.convert(dxf);
+                  
+                  // Create a layer group for the CAD elements
+                  const cadLayer = L.geoJSON(geojson, {
+                      style: function(feature) {
+                          // Style based on layer name
+                          const layerName = feature.properties.layer;
+                          return {
+                              color: getLayerColor(layerName),
+                              weight: 2,
+                              opacity: 0.8,
+                              fillOpacity: 0.2
+                          };
+                      },
+                      onEachFeature: function(feature, layer) {
+                          // Add popup with CAD element information
+                          if (feature.properties) {
+                              const popupContent = `
+                                  <div class="cad-popup">
+                                      <h4>CAD Element</h4>
+                                      <p><strong>Layer:</strong> ${feature.properties.layer || 'Unknown'}</p>
+                                      <p><strong>Type:</strong> ${feature.geometry.type}</p>
+                                      ${feature.properties.handle ? `<p><strong>Handle:</strong> ${feature.properties.handle}</p>` : ''}
+                                      ${feature.properties.color ? `<p><strong>Color:</strong> ${feature.properties.color}</p>` : ''}
+                                  </div>
+                              `;
+                              layer.bindPopup(popupContent);
+                          }
+                      }
+                  }).addTo(map);
+                  
+                  // Fit map to layer bounds
+                  map.fitBounds(cadLayer.getBounds());
+                  
+                  // Add to layer control with layer groups
+                  const layerName = file.name.replace('.dxf', '');
+                  const layerGroups = {};
+                  
+                  // Group layers by their CAD layer names
+                  cadLayer.eachLayer(function(layer) {
+                      const layerName = layer.feature.properties.layer || 'Default';
+                      if (!layerGroups[layerName]) {
+                          layerGroups[layerName] = L.layerGroup();
+                      }
+                      layerGroups[layerName].addLayer(layer);
+                  });
+                  
+                  // Add each layer group to the control
+                  Object.keys(layerGroups).forEach(function(name) {
+                      layerControl.addOverlay(layerGroups[name], `${layerName} - ${name}`);
+                  });
+                  
+                  // Remove loading control
+                  map.removeControl(loadingControl);
+                  
+                  // Show success message
+                  showNotification('CAD file imported successfully!', 'success');
+              } catch (error) {
+                  console.error('Error processing CAD file:', error);
+                  showNotification('Error processing CAD file. Please check the file format.', 'error');
+                  map.removeControl(loadingControl);
+              }
+          };
+          reader.readAsText(file);
+      };
+
+      // Helper function to get consistent colors for CAD layers
+      function getLayerColor(layerName) {
+          const colors = {
+              '0': '#000000',      // Black
+              '1': '#FF0000',      // Red
+              '2': '#FFFF00',      // Yellow
+              '3': '#00FF00',      // Green
+              '4': '#00FFFF',      // Cyan
+              '5': '#0000FF',      // Blue
+              '6': '#FF00FF',      // Magenta
+              '7': '#FFFFFF',      // White
+              '8': '#808080',      // Gray
+              '9': '#800000',      // Dark Red
+              '10': '#808000',     // Dark Yellow
+              '11': '#008000',     // Dark Green
+              '12': '#008080',     // Dark Cyan
+              '13': '#000080',     // Dark Blue
+              '14': '#800080',     // Dark Magenta
+              '15': '#C0C0C0'      // Light Gray
+          };
+          
+          // Use layer name as key or default to black
+          return colors[layerName] || colors['0'];
+      }
+
+      // Helper function to show notifications
+      function showNotification(message, type = 'info') {
+          const notification = document.createElement('div');
+          notification.className = `notification ${type}`;
+          notification.textContent = message;
+          document.body.appendChild(notification);
+          
+          setTimeout(() => {
+              notification.remove();
+          }, 3000);
+      }
+
+      // Add styles for notifications and CAD elements
+      const style = document.createElement('style');
+      style.textContent = `
+          .notification {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              padding: 15px 20px;
+              border-radius: 5px;
+              color: white;
+              font-family: Arial, sans-serif;
+              z-index: 1000;
+              animation: slideIn 0.3s ease-out;
+          }
+          
+          .notification.success {
+              background-color: #4CAF50;
+          }
+          
+          .notification.error {
+              background-color: #f44336;
+          }
+          
+          .notification.info {
+              background-color: #2196F3;
+          }
+          
+          @keyframes slideIn {
+              from {
+                  transform: translateX(100%);
+                  opacity: 0;
+              }
+              to {
+                  transform: translateX(0);
+                  opacity: 1;
+              }
+          }
+          
+          .cad-popup {
+              font-family: Arial, sans-serif;
+              font-size: 12px;
+          }
+          
+          .cad-popup h4 {
+              margin: 0 0 8px 0;
+              color: #333;
+              font-size: 14px;
+          }
+          
+          .cad-popup p {
+              margin: 4px 0;
+              color: #666;
+          }
+          
+          .loading-control {
+              font-family: Arial, sans-serif;
+              font-size: 12px;
+              color: #333;
+          }
+          
+          .loading-control i {
+              margin-right: 8px;
+              color: #007bff;
+          }
+      `;
+      document.head.appendChild(style);
+    </script>
+  </body>
+</html>
