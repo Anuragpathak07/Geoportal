@@ -349,6 +349,8 @@
         const lng = parseFloat(getParam('lng')) || 78.9629;
         const zoom = parseFloat(getParam('zoom')) || 5;
 
+        // Remove use of lat/lng/zoom parameters for initial camera view
+        // Always show the whole earth with India in center
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlZWY2MzA0ZC03NmU4LTRjOTEtODQwNi1jYTdkNzJlMWE4MTUiLCJpZCI6MzE0NDcwLCJpYXQiOjE3NTA1OTUwNTN9.FDUqMDehocIQpHURWp-EsFICW-jcKn7Cf_jGhWeYRCY';
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
@@ -359,11 +361,9 @@
             sceneModePicker: false,
         });
 
-        // Convert Leaflet zoom to Cesium height (approximate)
-        const height = 10000000 / Math.pow(2, zoom);
-
+        // Always show the whole earth with India in center
         viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(lng, lat, height),
+            destination: Cesium.Cartesian3.fromDegrees(78.9629, 20.5937, 20000000), // Lng, Lat, Altitude (20,000 km for whole earth)
         });
 
         // --- Navbar Tool Functions (stubs, expand as needed) ---

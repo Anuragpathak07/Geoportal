@@ -1,0 +1,9 @@
+{
+  "geoserver_url": "https://ecf22d61c69e.ngrok-free.app/geoserver",
+  "html_server_url": "https://f725e96addaa.ngrok-free.app",
+  "ngrok_status": "active",
+  "proxy_url": "https://4df68c689b9a.ngrok-free.app",
+  "tunnel_count": 3,
+  "last_updated": "2025-07-15T00:14:25.445566",
+  "server_port": 9000
+}

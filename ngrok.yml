@@ -1,0 +1,14 @@
+version: "3"
+
+tunnels:
+  html-server:
+    proto: http
+    addr: 8080
+
+  flask-proxy:
+    proto: http
+    addr: 5000
+
+  geoserver:
+    proto: http
+    addr: 8085

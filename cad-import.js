@@ -1,11 +1,11 @@
 // Global function to handle CAD file import
-window.handleCADFile = function(event) {
+window.handleCADFile = function (event) {
     const file = event.target.files[0];
     if (!file) return;
 
     // Show loading state
     const loadingControl = L.control({ position: 'topright' });
-    loadingControl.onAdd = function() {
+    loadingControl.onAdd = function () {
         const div = L.DomUtil.create('div', 'loading-control');
         div.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading CAD file...';
         return div;
@@ -13,14 +13,14 @@ window.handleCADFile = function(event) {
     loadingControl.addTo(map);
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         try {
             console.log('Starting DXF file processing...');
-            
+
             // Parse DXF content
             const parser = new DxfParser();
             const dxf = parser.parseSync(e.target.result);
-            
+
             console.log('DXF parsed successfully:', dxf);
             console.log('Number of entities:', dxf.entities.length);
             console.log('Entity types:', [...new Set(dxf.entities.map(e => e.type))]);
@@ -136,7 +136,7 @@ window.handleCADFile = function(event) {
                         break;
 
                     case 'ARC':
-                        if (!entity.center || typeof entity.radius !== 'number' || 
+                        if (!entity.center || typeof entity.radius !== 'number' ||
                             typeof entity.startAngle !== 'number' || typeof entity.endAngle !== 'number') {
                             console.warn('Invalid ARC entity:', entity);
                             break;
@@ -234,7 +234,7 @@ window.handleCADFile = function(event) {
 
             // Create a layer group for the CAD elements
             const cadLayer = L.geoJSON(geoJson, {
-                style: function(feature) {
+                style: function (feature) {
                     return {
                         color: getLayerColor(feature.properties.layer),
                         weight: 2,
@@ -242,7 +242,7 @@ window.handleCADFile = function(event) {
                         fillOpacity: feature.geometry.type === 'Polygon' ? 0.2 : 0
                     };
                 },
-                onEachFeature: function(feature, layer) {
+                onEachFeature: function (feature, layer) {
                     // Add popup with CAD element information
                     const popupContent = `
                         <div class="cad-popup">
@@ -258,6 +258,13 @@ window.handleCADFile = function(event) {
 
             // Add the layer to the map
             cadLayer.addTo(map);
+            // Remove the current basemap
+            if (typeof currentBasemap !== "undefined" && map.hasLayer(currentBasemap)) {
+                map.removeLayer(currentBasemap);
+            }
+
+            // Set plain background
+            document.getElementById('map').style.background = "#fff";
 
             // Create bounds from the calculated min/max coordinates
             const bounds = L.latLngBounds(
@@ -289,7 +296,7 @@ window.handleCADFile = function(event) {
         }
     };
 
-    reader.onerror = function() {
+    reader.onerror = function () {
         showNotification('Error reading file', 'error');
         loadingControl.remove();
     };

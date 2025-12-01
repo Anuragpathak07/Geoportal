@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>DXF CAD Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            background: linear-gradient(135deg, #2d2d2d, #1e1e1e);
+            border-bottom: 2px solid #333;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            position: relative;
+            z-index: 1000;
+        }
+
+        .toolbar h1 {
+            color: #00d4ff;
+            font-size: 18px;
+            font-weight: 600;
+            margin-right: 20px;
+        }
+
+        .toolbar-section {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 12px;
+            border-right: 1px solid #444;
+        }
+
+        .toolbar-section:last-child {
+            border-right: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4a4a4a, #3a3a3a);
+            border: 1px solid #555;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, #5a5a5a, #4a4a4a);
+            border-color: #666;
+        }
+
+        .btn.active {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            border-color: #00d4ff;
+            color: #000;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-label {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            border: 1px solid #4CAF50;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .file-label:hover {
+            background: linear-gradient(135deg, #5CBF60, #4CAF50);
+        }
+
+        #viewer-container {
+            width: 100vw;
+            height: calc(100vh - 60px);
+            background: #0f0f0f;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #dxf-canvas {
+            display: block;
+            cursor: grab;
+            width: 100%;
+            height: 100%;
+        }
+
+        #dxf-canvas.measuring {
+            cursor: crosshair;
+        }
+
+        #dxf-canvas:active {
+            cursor: grabbing;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00d4ff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        #coordinates {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: monospace;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        #zoom-level {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: monospace;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        .measurement-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            min-width: 200px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .measurement-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .measurement-item:last-child {
+            border-bottom: none;
+        }
+
+        .measurement-clear {
+            background: #ff4444;
+            border: 1px solid #ff4444;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 10px;
+            margin-top: 8px;
+        }
+
+        .measurement-clear:hover {
+            background: #ff6666;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00d4ff;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            pointer-events: none;
+            z-index: 200;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+        }
+
+        .help-text {
+            font-size: 11px;
+            color: #999;
+            margin-left: 8px;
+        }
+
+        .layer-info {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+        }
+
+        .layer-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            border: 1px solid #555;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+    <script src="https://unpkg.com/dxf-parser@1.1.2/dist/dxf-parser.js"></script>
+</head>
+
+<body>
+    <div class="toolbar">
+        <h1>DXF CAD Viewer</h1>
+
+        <div class="toolbar-section">
+            <label for="fileInput" class="file-label">📁 Open DXF</label>
+            <input type="file" id="fileInput" class="file-input" accept=".dxf" />
+        </div>
+
+        <div class="toolbar-section">
+            <button class="btn" id="panBtn" title="Pan Mode (P)">🖐️ Pan</button>
+            <button class="btn" id="fitBtn" title="Fit to View (F)">🔍 Fit</button>
+            <button class="btn" id="zoomInBtn" title="Zoom In (+)">🔍➕</button>
+            <button class="btn" id="zoomOutBtn" title="Zoom Out (-)">🔍➖</button>
+        </div>
+
+        <div class="toolbar-section">
+            <button class="btn" id="measureDistanceBtn" title="Measure Distance (D)">📏 Distance</button>
+            <button class="btn" id="measureAreaBtn" title="Measure Area (A)">📐 Area</button>
+            <button class="btn" id="measureAngleBtn" title="Measure Angle (G)">📐 Angle</button>
+            <button class="btn" id="clearMeasurementsBtn" title="Clear All Measurements">🗑️ Clear</button>
+        </div>
+
+        <div class="toolbar-section">
+            <span class="help-text">Press ESC to cancel measurement</span>
+        </div>
+    </div>
+
+    <div id="viewer-container">
+        <canvas id="dxf-canvas"></canvas>
+        <div id="info">Upload a DXF file to view</div>
+        <div id="coordinates">X: 0, Y: 0</div>
+        <div id="zoom-level">Zoom: 100%</div>
+        <div id="measurement-panel" class="measurement-panel" style="display: none;">
+            <div id="measurement-list"></div>
+            <button class="measurement-clear" onclick="clearAllMeasurements()">Clear All</button>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('dxf-canvas');
+        const ctx = canvas.getContext('2d');
+        const info = document.getElementById('info');
+        const coordinates = document.getElementById('coordinates');
+        const zoomLevel = document.getElementById('zoom-level');
+        const measurementPanel = document.getElementById('measurement-panel');
+        const measurementList = document.getElementById('measurement-list');
+
+        // Store features for redraw
+        let features = [];
+        let bounds = null;
+        let measurements = [];
+        let measurementMode = 'none'; // 'none', 'distance', 'area', 'angle', 'pan'
+        let measurementPoints = [];
+        let currentMeasurement = null;
+        let isPanning = false;
+        let mouseX = 0, mouseY = 0;
+
+        // Resize canvas to full viewport and fit drawing
+        function resizeCanvas() {
+            const container = document.getElementById('viewer-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            fitToView(); // Always refit on resize
+        }
+
+        // Initialize canvas size
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Pan/zoom state
+        let offsetX = 0, offsetY = 0, scale = 1;
+        let isDragging = false, lastX = 0, lastY = 0;
+
+        // Measurement state
+
+
+        // Convert screen coordinates to world coordinates
+        function screenToWorld(screenX, screenY) {
+            return {
+                x: (screenX - offsetX) / scale,
+                y: (canvas.height - screenY - offsetY) / scale
+            };
+        }
+
+        // Convert world coordinates to screen coordinates
+        function worldToScreen(worldX, worldY) {
+            return {
+                x: worldX * scale + offsetX,
+                y: canvas.height - (worldY * scale + offsetY)
+            };
+        }
+
+        // Calculate distance between two points
+        function distance(p1, p2) {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // Calculate area of polygon using shoelace formula
+        function calculateArea(points) {
+            if (points.length < 3) return 0;
+            let area = 0;
+            for (let i = 0; i < points.length; i++) {
+                const j = (i + 1) % points.length;
+                area += points[i].x * points[j].y;
+                area -= points[j].x * points[i].y;
+            }
+            return Math.abs(area) / 2;
+        }
+
+        // Calculate angle between three points
+        function calculateAngle(p1, p2, p3) {
+            const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+            const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+
+            const dot = v1.x * v2.x + v1.y * v2.y;
+            const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+            const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+
+            const angle = Math.acos(dot / (mag1 * mag2));
+            return angle * 180 / Math.PI;
+        }
+
+        // Draw measurement overlays
+        function drawMeasurements() {
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform to screen coordinates
+
+            // Draw completed measurements
+            measurements.forEach(measurement => {
+                ctx.strokeStyle = '#00ff00';
+                ctx.fillStyle = '#00ff00';
+                ctx.lineWidth = 2;
+                ctx.font = '12px Arial';
+
+                if (measurement.type === 'distance') {
+                    const p1 = worldToScreen(measurement.points[0].x, measurement.points[0].y);
+                    const p2 = worldToScreen(measurement.points[1].x, measurement.points[1].y);
+
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+
+                    // Draw points
+                    ctx.beginPath();
+                    ctx.arc(p1.x, p1.y, 4, 0, 2 * Math.PI);
+                    ctx.arc(p2.x, p2.y, 4, 0, 2 * Math.PI);
+                    ctx.fill();
+
+                    // Draw distance label
+                    const midX = (p1.x + p2.x) / 2;
+                    const midY = (p1.y + p2.y) / 2;
+                    ctx.fillText((measurement.value * 0.00328084).toFixed(2) + ' ft', midX + 5, midY - 5);
+
+                } else if (measurement.type === 'area') {
+                    ctx.strokeStyle = '#ff8800';
+                    ctx.fillStyle = 'rgba(255, 136, 0, 0.2)';
+
+                    const screenPoints = measurement.points.map(p => worldToScreen(p.x, p.y));
+
+                    ctx.beginPath();
+                    ctx.moveTo(screenPoints[0].x, screenPoints[0].y);
+                    for (let i = 1; i < screenPoints.length; i++) {
+                        ctx.lineTo(screenPoints[i].x, screenPoints[i].y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Draw points
+                    ctx.fillStyle = '#ff8800';
+                    screenPoints.forEach(p => {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+                        ctx.fill();
+                    });
+
+                    // Draw area label
+                    const centerX = screenPoints.reduce((sum, p) => sum + p.x, 0) / screenPoints.length;
+                    const centerY = screenPoints.reduce((sum, p) => sum + p.y, 0) / screenPoints.length;
+                    ctx.fillText(`Area: ${(measurement.value * 0.00328084 * 0.00328084).toFixed(2)} sq.ft`, centerX, centerY);
+
+                } else if (measurement.type === 'angle') {
+                    ctx.strokeStyle = '#ff0088';
+                    ctx.fillStyle = '#ff0088';
+
+                    const screenPoints = measurement.points.map(p => worldToScreen(p.x, p.y));
+
+                    // Draw angle lines
+                    ctx.beginPath();
+                    ctx.moveTo(screenPoints[1].x, screenPoints[1].y);
+                    ctx.lineTo(screenPoints[0].x, screenPoints[0].y);
+                    ctx.moveTo(screenPoints[1].x, screenPoints[1].y);
+                    ctx.lineTo(screenPoints[2].x, screenPoints[2].y);
+                    ctx.stroke();
+
+                    // Draw points
+                    screenPoints.forEach(p => {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+                        ctx.fill();
+                    });
+
+                    // Draw angle arc
+                    const radius = 30;
+                    const angle1 = Math.atan2(screenPoints[0].y - screenPoints[1].y, screenPoints[0].x - screenPoints[1].x);
+                    const angle2 = Math.atan2(screenPoints[2].y - screenPoints[1].y, screenPoints[2].x - screenPoints[1].x);
+
+                    ctx.beginPath();
+                    ctx.arc(screenPoints[1].x, screenPoints[1].y, radius, angle1, angle2);
+                    ctx.stroke();
+
+                    // Draw angle label
+                    ctx.fillText(`${measurement.value.toFixed(1)}°`, screenPoints[1].x + 35, screenPoints[1].y - 10);
+                }
+            });
+
+            // Draw current measurement in progress
+            if (measurementMode !== 'none' && measurementPoints.length > 0) {
+                ctx.strokeStyle = '#ffff00';
+                ctx.fillStyle = '#ffff00';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+
+                const screenPoints = measurementPoints.map(p => worldToScreen(p.x, p.y));
+
+                if (measurementMode === 'distance' && screenPoints.length === 1) {
+                    // Draw line to current mouse position
+                    ctx.beginPath();
+                    ctx.moveTo(screenPoints[0].x, screenPoints[0].y);
+                    ctx.lineTo(mouseX, mouseY);
+                    ctx.stroke();
+                } else if (measurementMode === 'area' && screenPoints.length > 0) {
+                    // Draw polygon
+                    ctx.beginPath();
+                    ctx.moveTo(screenPoints[0].x, screenPoints[0].y);
+                    for (let i = 1; i < screenPoints.length; i++) {
+                        ctx.lineTo(screenPoints[i].x, screenPoints[i].y);
+                    }
+                    ctx.lineTo(mouseX, mouseY);
+                    ctx.stroke();
+                } else if (measurementMode === 'angle' && screenPoints.length > 0) {
+                    // Draw angle lines
+                    ctx.beginPath();
+                    if (screenPoints.length === 1) {
+                        ctx.moveTo(screenPoints[0].x, screenPoints[0].y);
+                        ctx.lineTo(mouseX, mouseY);
+                    } else if (screenPoints.length === 2) {
+                        ctx.moveTo(screenPoints[0].x, screenPoints[0].y);
+                        ctx.lineTo(screenPoints[1].x, screenPoints[1].y);
+                        ctx.lineTo(mouseX, mouseY);
+                    }
+                    ctx.stroke();
+                }
+
+                // Draw measurement points
+                screenPoints.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+                    ctx.fill();
+                });
+
+                ctx.setLineDash([]);
+            }
+
+            ctx.restore();
+        }
+
+        // Update measurement panel
+        function updateMeasurementPanel() {
+            if (measurements.length === 0) {
+                measurementPanel.style.display = 'none';
+                return;
+            }
+
+            measurementPanel.style.display = 'block';
+            measurementList.innerHTML = '';
+
+            measurements.forEach((measurement, index) => {
+                const item = document.createElement('div');
+                item.className = 'measurement-item';
+
+                let label = '';
+                let value = '';
+
+                if (measurement.type === 'distance') {
+                    label = 'Distance';
+                    value = (measurement.value * 0.00328084).toFixed(2) + ' ft'; // Convert mm to ft
+                } else if (measurement.type === 'area') {
+                    label = 'Area';
+                    value = (measurement.value * 0.00328084 * 0.00328084).toFixed(2) + ' sq.ft'; // Convert mm^2 to ft^2
+                } else if (measurement.type === 'angle') {
+                    label = 'Angle';
+                    value = measurement.value.toFixed(1) + '°';
+                }
+
+                item.innerHTML = `
+                    <span>${label} ${index + 1}:</span>
+                    <span>${value}</span>
+                `;
+                measurementList.appendChild(item);
+            });
+        }
+
+        // Clear all measurements
+        function clearAllMeasurements() {
+            measurements = [];
+            measurementPoints = [];
+            measurementMode = 'none';
+            updateMeasurementPanel();
+            drawFeatures();
+        }
+
+        // Helper: Draw all features
+        function drawFeatures() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (features.length === 0) {
+                drawMeasurements();
+                return;
+            }
+
+            ctx.save();
+            ctx.translate(offsetX, canvas.height + offsetY);
+            ctx.scale(scale, -scale); // Flip Y axis
+
+            features.forEach(f => {
+                ctx.beginPath();
+                ctx.strokeStyle = getLayerColor(f.properties.layer);
+                ctx.lineWidth = 1 / scale;
+
+                if (f.geometry.type === 'LineString') {
+                    const coords = f.geometry.coordinates;
+                    if (coords.length >= 2) {
+                        ctx.moveTo(coords[0][0], coords[0][1]);
+                        for (let i = 1; i < coords.length; i++) {
+                            ctx.lineTo(coords[i][0], coords[i][1]);
+                        }
+                    }
+                } else if (f.geometry.type === 'Polygon') {
+                    f.geometry.coordinates.forEach(ring => {
+                        if (ring.length >= 2) {
+                            ctx.moveTo(ring[0][0], ring[0][1]);
+                            for (let i = 1; i < ring.length; i++) {
+                                ctx.lineTo(ring[i][0], ring[i][1]);
+                            }
+                            ctx.closePath();
+                        }
+                    });
+                } else if (f.geometry.type === 'Point') {
+                    const [x, y] = f.geometry.coordinates;
+                    ctx.arc(x, y, 2 / scale, 0, 2 * Math.PI);
+                }
+                ctx.stroke();
+            });
+            ctx.restore();
+
+            // Draw measurements on top
+            drawMeasurements();
+
+            // Update zoom level display
+            zoomLevel.textContent = `Zoom: ${(scale * 100).toFixed(0)}%`;
+        }
+
+        // Helper: Get color by layer
+        function getLayerColor(layer) {
+            const colors = {
+                '0': '#FF4444',
+                'DEFPOINTS': '#4444FF',
+                'Plan 1': '#44FF44',
+                'default': '#FFFFFF'
+            };
+            return colors[layer] || colors.default;
+        }
+
+        // Mouse event handlers
+        canvas.addEventListener('mousedown', e => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (measurementMode === 'pan') {
+                isDragging = true;
+                mouseX = x;
+                mouseY = y;
+                return;
+            }
+
+            if (measurementMode !== 'none') {
+                const worldPos = screenToWorld(x, y);
+                measurementPoints.push(worldPos);
+
+                if (measurementMode === 'distance' && measurementPoints.length === 2) {
+                    // 1 unit = 1 foot
+                    const dist = distance(measurementPoints[0], measurementPoints[1]);
+                    measurements.push({
+                        type: 'distance',
+                        points: [...measurementPoints],
+                        value: dist
+                    });
+                    measurementPoints = [];
+                    measurementMode = 'none';
+                    updateMeasurementPanel();
+                    setMeasurementMode('none');
+                } else if (measurementMode === 'angle' && measurementPoints.length === 3) {
+                    const angle = calculateAngle(measurementPoints[0], measurementPoints[1], measurementPoints[2]);
+                    measurements.push({
+                        type: 'angle',
+                        points: [...measurementPoints],
+                        value: angle
+                    });
+                    measurementPoints = [];
+                    measurementMode = 'none';
+                    updateMeasurementPanel();
+                    setMeasurementMode('none');
+                }
+
+                drawFeatures();
+            } else {
+                isDragging = true;
+                mouseX = x;
+                mouseY = y;
+            }
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+       const x = e.clientX - rect.left;
+       const y = e.clientY - rect.top;
+
+       mouseX = x;
+       mouseY = y;
+
+            // Update coordinates display
+            const worldPos = screenToWorld(x, y);
+            coordinates.textContent = `X: ${worldPos.x.toFixed(2)}, Y: ${worldPos.y.toFixed(2)}`;
+
+            if (measurementMode === 'pan' && isDragging) {
+                // Calculate pan delta before updating lastX/lastY
+                const deltaX = x - lastX;
+                const deltaY = y - lastY;
+
+                offsetX += deltaX;
+offsetY -= deltaY;
+
+                lastX = x;
+                lastY = y;
+                drawFeatures();
+            } else if (isDragging && measurementMode === 'none') {
+                // Calculate pan delta before updating lastX/lastY
+                const deltaX = x - lastX;
+                const deltaY = y - lastY;
+
+                offsetX += deltaX;
+                offsetY += deltaY;
+
+                lastX = x;
+                lastY = y;
+                drawFeatures();
+            } else if (measurementMode !== 'none') {
+                drawFeatures(); // Redraw to show preview
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+
+        // Double-click to finish area measurement
+        canvas.addEventListener('dblclick', e => {
+            if (measurementMode === 'area' && measurementPoints.length >= 3) {
+                const area = calculateArea(measurementPoints);
+                measurements.push({
+                    type: 'area',
+                    points: [...measurementPoints],
+                    value: area
+                });
+                measurementPoints = [];
+                measurementMode = 'none';
+                updateMeasurementPanel();
+                setMeasurementMode('none');
+                drawFeatures();
+            }
+        });
+
+        // Zoom with mouse wheel
+        canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Mouse-centered zoom for flipped Y axis
+    offsetX = x - (x - offsetX) * zoom;
+    offsetY = (canvas.height - y) - (canvas.height - y - offsetY) * zoom;
+    scale *= zoom;
+    drawFeatures();
+});
+
+        // Toolbar event handlers
+        function setMeasurementMode(mode) {
+            measurementMode = mode;
+            measurementPoints = [];
+
+            // Update button states
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+
+            if (mode === 'distance') {
+                document.getElementById('measureDistanceBtn').classList.add('active');
+                canvas.classList.add('measuring');
+                info.textContent = 'Click two points to measure distance';
+            } else if (mode === 'area') {
+                document.getElementById('measureAreaBtn').classList.add('active');
+                canvas.classList.add('measuring');
+                info.textContent = 'Click points to define area, double-click to finish';
+            } else if (mode === 'angle') {
+                document.getElementById('measureAngleBtn').classList.add('active');
+                canvas.classList.add('measuring');
+                info.textContent = 'Click 3 points: vertex in the middle';
+            } else if (mode === 'pan') {
+                document.getElementById('panBtn').classList.add('active');
+                canvas.classList.remove('measuring');
+                info.textContent = 'Pan mode: drag to move the drawing';
+            } else {
+                canvas.classList.remove('measuring');
+                if (features.length > 0) {
+                    info.textContent = `Loaded ${features.length} entities`;
+                } else {
+                    info.textContent = 'Upload a DXF file to view';
+                }
+            }
+        }
+
+        document.getElementById('measureDistanceBtn').addEventListener('click', () => {
+            setMeasurementMode(measurementMode === 'distance' ? 'none' : 'distance');
+        });
+
+        document.getElementById('measureAreaBtn').addEventListener('click', () => {
+            setMeasurementMode(measurementMode === 'area' ? 'none' : 'area');
+        });
+
+        document.getElementById('measureAngleBtn').addEventListener('click', () => {
+            setMeasurementMode(measurementMode === 'angle' ? 'none' : 'angle');
+        });
+
+        document.getElementById('clearMeasurementsBtn').addEventListener('click', clearAllMeasurements);
+
+        document.getElementById('panBtn').addEventListener('click', () => {
+            setMeasurementMode('pan');
+        });
+
+        document.getElementById('fitBtn').addEventListener('click', fitToView);
+
+        document.getElementById('zoomInBtn').addEventListener('click', () => {
+            scale *= 1.2;
+            drawFeatures();
+        });
+
+        document.getElementById('zoomOutBtn').addEventListener('click', () => {
+            scale /= 1.2;
+            drawFeatures();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function (e) {
+            switch (e.key.toLowerCase()) {
+                case 'f':
+                    fitToView();
+                    break;
+                case 'd':
+                    setMeasurementMode(measurementMode === 'distance' ? 'none' : 'distance');
+                    break;
+                case 'a':
+                    setMeasurementMode(measurementMode === 'area' ? 'none' : 'area');
+                    break;
+                case 'g':
+                    setMeasurementMode(measurementMode === 'angle' ? 'none' : 'angle');
+                    break;
+                case 'p':
+                    setMeasurementMode('pan');
+                    break;
+                case 'escape':
+                    setMeasurementMode('none');
+                    break;
+                case '+':
+                case '=':
+                    scale *= 1.2;
+                    drawFeatures();
+                    break;
+                case '-':
+                    scale /= 1.2;
+                    drawFeatures();
+                    break;
+            }
+        });
+
+        // Fit to view functionality
+        function fitToView() {
+            if (bounds) {
+                const dx = bounds.maxX - bounds.minX;
+                const dy = bounds.maxY - bounds.minY;
+                const padding = 0.1;
+
+                // Use the same scale for both axes to preserve aspect ratio
+                scale = Math.min(
+                    (canvas.width * (1 - padding)) / dx,
+                    (canvas.height * (1 - padding)) / dy
+                );
+
+                // Center the drawing
+                // Center the drawing
+                // Center the drawing (Y is flipped)
+                const centerX = (bounds.minX + bounds.maxX) / 2;
+                const centerY = (bounds.minY + bounds.maxY) / 2;
+                offsetX = canvas.width / 2 - centerX * scale;
+                offsetY = - (canvas.height / 2 + centerY * scale);
+
+                drawFeatures();
+            }
+        }
+
+        // Main DXF import logic
+        fileInput.addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (!file) {
+                console.log("No file selected.");
+                return;
+            }
+
+            info.textContent = `Loading ${file.name}...`;
+            console.log("File selected:", file);
+
+            const reader = new FileReader();
+            reader.onload = function (evt) {
+                console.log("File read complete.");
+                const content = evt.target.result;
+                if (!content || content.length < 10) {
+                    info.textContent = "File is empty or too small.";
+                    console.log("File is empty or too small.");
+                    return;
+                }
+
+                console.log("First 200 chars of file:", content.slice(0, 200));
+
+                try {
+                    const parser = new window.DxfParser();
+                    const dxf = parser.parseSync(content);
+
+                    console.log("DXF parsed:", dxf);
+                    if (!dxf.entities || dxf.entities.length === 0) {
+                        info.textContent = "No entities found in this DXF file.";
+                        return;
+                    }
+
+                    // Convert DXF entities to features
+                    features = [];
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+                    // Debug: Log all entity types
+                    const entityTypes = {};
+                    dxf.entities.forEach(entity => {
+                        entityTypes[entity.type] = (entityTypes[entity.type] || 0) + 1;
+                    });
+                    console.log("Entity types found:", entityTypes);
+
+                    dxf.entities.forEach((entity, index) => {
+                        console.log(`Entity ${index}:`, entity.type, entity);
+                        let feature = null, coordinates = [];
+
+                        switch (entity.type) {
+                            case 'LINE':
+                                if (entity.start && entity.end) {
+                                    coordinates = [
+                                        [entity.start.x, entity.start.y],
+                                        [entity.end.x, entity.end.y]
+                                    ];
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: { layer: entity.layer || '0', type: 'LINE' },
+                                        geometry: { type: 'LineString', coordinates }
+                                    };
+                                }
+                                break;
+
+                            case 'SPLINE':
+                                if (entity.controlPoints && entity.controlPoints.length > 1) {
+                                    coordinates = entity.controlPoints.map(p => [p.x, p.y]);
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: { layer: entity.layer || '0', type: 'SPLINE' },
+                                        geometry: { type: 'LineString', coordinates }
+                                    };
+                                }
+                                break;
+
+                            case 'TEXT':
+                            case 'MTEXT':
+                                if (entity.startPoint || entity.position) {
+                                    const pos = entity.startPoint || entity.position;
+                                    coordinates = [pos.x, pos.y];
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: {
+                                            layer: entity.layer || '0',
+                                            type: entity.type,
+                                            text: entity.text || ''
+                                        },
+                                        geometry: { type: 'Point', coordinates }
+                                    };
+                                }
+                                break;
+
+                            case 'INSERT':
+                                if (entity.position) {
+                                    coordinates = [entity.position.x, entity.position.y];
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: {
+                                            layer: entity.layer || '0',
+                                            type: 'INSERT',
+                                            name: entity.name || ''
+                                        },
+                                        geometry: { type: 'Point', coordinates }
+                                    };
+                                }
+                                break;
+
+                            case 'SOLID':
+                            case 'TRACE':
+                                if (entity.corners && entity.corners.length >= 3) {
+                                    coordinates = [entity.corners.map(c => [c.x, c.y])];
+                                    // Close the polygon
+                                    if (coordinates[0].length > 0) {
+                                        coordinates[0].push(coordinates[0][0]);
+                                    }
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: { layer: entity.layer || '0', type: entity.type },
+                                        geometry: { type: 'Polygon', coordinates }
+                                    };
+                                }
+                                break;
+
+                            case 'HATCH':
+                                if (entity.boundaryPaths && entity.boundaryPaths.length > 0) {
+                                    // Try to extract boundary geometry
+                                    const path = entity.boundaryPaths[0];
+                                    if (path.edges && path.edges.length > 0) {
+                                        coordinates = [];
+                                        path.edges.forEach(edge => {
+                                            if (edge.type === 'line' && edge.start && edge.end) {
+                                                coordinates.push([edge.start.x, edge.start.y]);
+                                                coordinates.push([edge.end.x, edge.end.y]);
+                                            }
+                                        });
+                                        if (coordinates.length > 1) {
+                                            feature = {
+                                                type: 'Feature',
+                                                properties: { layer: entity.layer || '0', type: 'HATCH' },
+                                                geometry: { type: 'LineString', coordinates }
+                                            };
+                                        }
+                                    }
+                                }
+                                break;
+
+                            case 'LWPOLYLINE':
+                            case 'POLYLINE':
+                                if (entity.vertices && entity.vertices.length > 1) {
+                                    coordinates = entity.vertices.map(v => [v.x, v.y]);
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: { layer: entity.layer || '0', type: 'POLYLINE' },
+                                        geometry: { type: 'LineString', coordinates }
+                                    };
+                                }
+                                break;
+
+                            case 'CIRCLE':
+                                if (entity.center && typeof entity.radius === 'number') {
+                                    const points = [];
+                                    const segments = 64;
+                                    for (let i = 0; i <= segments; i++) {
+                                        const angle = (i / segments) * 2 * Math.PI;
+                                        points.push([
+                                            entity.center.x + entity.radius * Math.cos(angle),
+                                            entity.center.y + entity.radius * Math.sin(angle)
+                                        ]);
+                                    }
+                                    coordinates = [points];
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: { layer: entity.layer || '0', type: 'CIRCLE' },
+                                        geometry: { type: 'Polygon', coordinates }
+                                    };
+                                }
+                                break;
+
+                            case 'ARC':
+                                if (entity.center && typeof entity.radius === 'number' &&
+                                    typeof entity.startAngle === 'number' && typeof entity.endAngle === 'number') {
+                                    const points = [];
+                                    const segments = 32;
+                                    let startAngle = entity.startAngle;
+                                    let endAngle = entity.endAngle;
+
+                                    // Handle angle wrap-around
+                                    if (endAngle < startAngle) {
+                                        endAngle += 2 * Math.PI;
+                                    }
+
+                                    for (let i = 0; i <= segments; i++) {
+                                        const angle = startAngle + (endAngle - startAngle) * (i / segments);
+                                        points.push([
+                                            entity.center.x + entity.radius * Math.cos(angle),
+                                            entity.center.y + entity.radius * Math.sin(angle)
+                                        ]);
+                                    }
+                                    coordinates = points;
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: { layer: entity.layer || '0', type: 'ARC' },
+                                        geometry: { type: 'LineString', coordinates }
+                                    };
+                                }
+                                break;
+
+                            case 'POINT':
+                                if (entity.position) {
+                                    coordinates = [entity.position.x, entity.position.y];
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: { layer: entity.layer || '0', type: 'POINT' },
+                                        geometry: { type: 'Point', coordinates }
+                                    };
+                                }
+                                break;
+
+                            case 'ELLIPSE':
+                                if (entity.center && entity.majorAxis && entity.axisRatio) {
+                                    const points = [];
+                                    const segments = 64;
+                                    const majorRadius = Math.sqrt(entity.majorAxis.x * entity.majorAxis.x + entity.majorAxis.y * entity.majorAxis.y);
+                                    const minorRadius = majorRadius * entity.axisRatio;
+                                    const angle = Math.atan2(entity.majorAxis.y, entity.majorAxis.x);
+
+                                    for (let i = 0; i <= segments; i++) {
+                                        const t = (i / segments) * 2 * Math.PI;
+                                        const x = majorRadius * Math.cos(t);
+                                        const y = minorRadius * Math.sin(t);
+
+                                        // Rotate and translate
+                                        const rotX = x * Math.cos(angle) - y * Math.sin(angle);
+                                        const rotY = x * Math.sin(angle) + y * Math.cos(angle);
+
+                                        points.push([
+                                            entity.center.x + rotX,
+                                            entity.center.y + rotY
+                                        ]);
+                                    }
+                                    coordinates = [points];
+                                    feature = {
+                                        type: 'Feature',
+                                        properties: { layer: entity.layer || '0', type: 'ELLIPSE' },
+                                        geometry: { type: 'Polygon', coordinates }
+                                    };
+                                }
+                                break;
+
+                            default:
+                                console.log(`Unhandled entity type: ${entity.type}`, entity);
+                                break;
+                        }
+
+                        if (feature) {
+                            console.log(`Created feature from ${entity.type}:`, feature);
+                            // Update bounds
+                            if (feature.geometry.type === 'Point') {
+                                minX = Math.min(minX, coordinates[0]);
+                                minY = Math.min(minY, coordinates[1]);
+                                maxX = Math.max(maxX, coordinates[0]);
+                                maxY = Math.max(maxY, coordinates[1]);
+                            } else if (feature.geometry.type === 'LineString') {
+                                coordinates.forEach(([x, y]) => {
+                                    minX = Math.min(minX, x);
+                                    minY = Math.min(minY, y);
+                                    maxX = Math.max(maxX, x);
+                                    maxY = Math.max(maxY, y);
+                                });
+                            } else if (feature.geometry.type === 'Polygon') {
+                                coordinates[0].forEach(([x, y]) => {
+                                    minX = Math.min(minX, x);
+                                    minY = Math.min(minY, y);
+                                    maxX = Math.max(maxX, x);
+                                    maxY = Math.max(maxY, y);
+                                });
+                            }
+                            features.push(feature);
+                        }
+                    });
+
+                    console.log(`Processed ${features.length} features`);
+                    console.log(`Bounds: x(${minX}, ${maxX}), y(${minY}, ${maxY})`);
+
+                    // Center and scale drawing
+                    if (minX !== Infinity && minY !== Infinity && maxX !== -Infinity && maxY !== -Infinity) {
+                        bounds = { minX, minY, maxX, maxY };
+                        fitToView();
+                        info.textContent = `Loaded ${features.length} entities`;
+                    } else {
+                        info.textContent = "No valid geometry found";
+                    }
+
+                    // Clear any existing measurements
+                    clearAllMeasurements();
+                    drawFeatures();
+                } catch (err) {
+                    info.textContent = 'Failed to parse DXF: ' + err.message;
+                    console.error('Failed to parse DXF:', err);
+                }
+            };
+            reader.onerror = function (err) {
+                info.textContent = 'File read error: ' + err.message;
+                console.error('File read error:', err);
+            };
+            reader.readAsText(file);
+        });
+    </script>
+</body>
+
+</html>
