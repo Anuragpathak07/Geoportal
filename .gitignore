@@ -1,0 +1,12 @@
+# Ignore images
+*.png
+
+# Ignore CAD / DXF files
+*.dxf
+
+# Ignore executables
+*.exe
+
+# Ignore YAML config files
+*.yml
+*.yaml
